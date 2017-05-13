@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+# Kirk Steuber 2017-05-12
+from sys import stdout
+import argparse
+import shutil
+
+# Effective width outputted will actually be 1 less than this value because of
+# a fairly arbitary 1 character buffer I add to the detected terminal width
+FALLBACK_TERMINAL_WIDTH = 81
+
+
+def positive_int(value):
+  int_value = int(value)
+  if int_value <= 0:
+    raise argparse.ArgumentTypeError("'{}' is not a valid positive integer"
+                                     .format(int_value))
+  return int_value
+
+def single_char(value):
+  if len(value) != 1:
+    raise argparse.ArgumentTypeError("'{}' is not a single character"
+                                     .format(value))
+  return value;
+
+def printable_char(char_code):
+  if char_code < 32 or char_code > 126:
+    return False
+  return True
+
+terminal_info = shutil.get_terminal_size((FALLBACK_TERMINAL_WIDTH, 1))
+detected_terminal_width = terminal_info.columns
+# My terminal wraps to the next line if I even *use* the last character of the
+# last line. So let's just give a 1 character buffer to make sure this isn't
+# an issue
+detected_terminal_width -= 1
+
+parser = argparse.ArgumentParser(description = "Print a hex representation of "
+                                 "the given file")
+parser.add_argument("path", help = "The path to the file to be dumped")
+parser.add_argument("-g", "--group-count", type = int, default = 0,
+                    help = "The number of byte groups per line. A value less "
+                    "than 1 causes as many to groups per line as can fit in "
+                    "the terminal window.")
+parser.add_argument("-b", "--byte-count", type = positive_int, default = 4,
+                    help = "The number of bytes per group.")
+parser.add_argument("-H", "--hex-only", action = "store_true",
+                    help = "Specifies that the hex values only should be "
+                    "printed. The characters they represent will be supressed.")
+parser.add_argument("-w", "--terminal-width", type = positive_int,
+                    default = detected_terminal_width,
+                    help = "Override detected terminal width with a custom "
+                    "number of columns")
+parser.add_argument('-u', "--unprintable-representation", type = single_char,
+                    default = ".", metavar = "CHAR",
+                    help = "Sets the character that is printed in place of "
+                    "unprintable characters. Must be a single character.")
+group = parser.add_argument_group("Options to change the output template:")
+group.add_argument("--byte-separator", default = " ", metavar = "STRING",
+                   help = "The string used to separate bytes from one "
+                   "another.")
+group.add_argument("--group-separator", default = "    ", metavar = "STRING",
+                   help = "The string used to separate byte groups from one "
+                   "another.")
+group.add_argument("--character-separator", default = "    ",
+                   metavar = "STRING",
+                   help = "The string used to separate the hex byte output "
+                   "from the output showing the characters that those bytes "
+                   "represent")
+args = parser.parse_args()
+
+# Unless otherwise specified, calculate how many groups per line we can fit in
+# the terminal
+if args.group_count < 1:
+  chars_per_byte = 2 + len(args.byte_separator)
+  # Subtract 1 byte separator since the first byte in the group doesn't need one
+  # Add the number of bytes per group at the end to account for the length of
+  # the character text
+  chars_per_group = (chars_per_byte * args.byte_count) \
+                  + len(args.group_separator) \
+                  - len(args.byte_separator) \
+                  + args.byte_count
+  # Subtract 1 group separator since the first group doesn't need one
+  single_group_char_count = chars_per_group \
+                          - len(args.group_separator) \
+                          + len(args.character_separator)
+  remaining_chars = args.terminal_width - single_group_char_count
+  args.group_count = max(1, 1 + (remaining_chars // chars_per_group))
+
+bytes_in_group = 0
+groups_in_line = 0
+line_str = ""
+with open(args.path, "rb") as f:
+  while True:
+    byte = f.read(1)
+
+    if byte:
+      hex_str = "{:02x}".format(ord(byte))
+    else:
+      # We have printed all the bytes in the file. However, we should only stop
+      # here if there are no characters that need to be printed after the bytes
+      # If there are such characters, just keep printing empty bytes until
+      # we print them
+      if line_str:
+        hex_str = "  "
+      else:
+        break
+    
+    if bytes_in_group == args.byte_count:
+      groups_in_line += 1
+      bytes_in_group = 0
+      if groups_in_line == args.group_count:
+        if not args.hex_only:
+          stdout.write(args.character_separator)
+          stdout.write(line_str)
+        stdout.write("\n")
+        groups_in_line = 0
+        line_str = ""
+        # Now that we output `line_str`, check to see if we already finished
+        # reading
+        if not byte:
+          break
+      else:
+        stdout.write(args.group_separator)
+
+    if bytes_in_group > 0:
+      stdout.write(args.byte_separator)
+
+    stdout.write(hex_str)
+    bytes_in_group += 1
+
+    if not args.hex_only and byte:
+      if printable_char(ord(byte)):
+        line_str += byte.decode("utf-8") 
+      else:
+        line_str += args.unprintable_representation

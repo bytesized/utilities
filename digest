@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+# Kirk Steuber, 2016-02-22
+import hashlib
+import argparse
+from functools import partial
+import os
+import sys
+
+try:
+	import progressbar # Use progressbar2 if possible
+	WITH_PROGRESS_BAR = True
+except:
+	WITH_PROGRESS_BAR = False
+
+CHUNK_SIZE = 1024
+PROGRESS_BAR_CUTOFF = 1024 * 1024 * 10 # Do not show a progress bar for files under 10 Mb
+
+parser = argparse.ArgumentParser(description = 'Hash something')
+parser.add_argument('algorithm', help = 'What algorithm to digest with', \
+	choices = list(hashlib.algorithms))
+parser.add_argument('-s', '--string', help = 'Data to digest will the literal string given (default is filename)', \
+	action = 'store_true')
+parser.add_argument('-u', '--uppercase', help = 'Outputted hash will be in uppercase', \
+	action = 'store_true')
+parser.add_argument('-q', '--quiet', help = 'No status bar will be printed', \
+	action = 'store_true')
+parser.add_argument('-v', '--verify', help = 'Verify the given hash')
+parser.add_argument('input', help = 'Data to be digested or location of data')
+args = parser.parse_args()
+
+hasher = getattr(hashlib, args.algorithm)()
+if args.string:
+	hasher.update(args.input)
+else:
+	file_size = os.stat(args.input).st_size
+	done = 0
+	if file_size > PROGRESS_BAR_CUTOFF and not args.quiet:
+		show_progress = True
+		if WITH_PROGRESS_BAR:
+			bar = progressbar.ProgressBar(max_value = file_size)
+		else:
+			last_percentage = -1
+	else:
+		show_progress = False
+
+	with open(args.input, 'rb') as f:
+		for chunk in iter(partial(f.read, CHUNK_SIZE), ''):
+			hasher.update(chunk)
+			done += len(chunk)
+			if show_progress:
+				if WITH_PROGRESS_BAR:
+					bar.update(done)
+				else:
+					percentage = done * 100 / file_size
+					if percentage != last_percentage:
+						sys.stdout.write("\r{0}%".format(percentage))
+						sys.stdout.flush()
+						last_percentage = percentage
+		if show_progress:
+			print
+
+digest = hasher.hexdigest()
+
+if args.uppercase:
+	digest = digest.upper()
+
+print digest
+
+if args.verify:
+	if args.verify.lower() == digest.lower():
+		print "MATCH"
+		sys.exit(0)
+	else:
+		print "NO MATCH"
+		sys.exit(1)
