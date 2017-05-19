@@ -18,7 +18,7 @@ PROGRESS_BAR_CUTOFF = 1024 * 1024 * 10
 
 parser = argparse.ArgumentParser(description = "Hash something")
 parser.add_argument("algorithm", help = "What algorithm to digest with",
-                    choices = list(hashlib.algorithms))
+                    choices = list(hashlib.algorithms_available))
 parser.add_argument("-s", "--string", action = "store_true",
                     help = "Data to digest will the literal string given "
                            "(default is filename)")
