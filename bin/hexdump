@@ -4,9 +4,7 @@ from sys import stdout
 import argparse
 import shutil
 
-# Effective width outputted will actually be 1 less than this value because of
-# a fairly arbitary 1 character buffer I add to the detected terminal width
-FALLBACK_TERMINAL_WIDTH = 81
+FALLBACK_TERMINAL_WIDTH = 80
 
 
 def positive_int(value):
@@ -27,11 +25,14 @@ def printable_char(char_code):
     return False
   return True
 
-terminal_info = shutil.get_terminal_size((FALLBACK_TERMINAL_WIDTH, 1))
-detected_terminal_width = terminal_info.columns
+# Determining terminal size:
 # My terminal wraps to the next line if I even *use* the last character of the
 # last line. So let's just give a 1 character buffer to make sure this isn't
 # an issue
+# To make the fallback terminal width accurate after this buffer is applied,
+# add 1 to it so that the "buffered" version is the value specified
+terminal_info = shutil.get_terminal_size((FALLBACK_TERMINAL_WIDTH + 1, 1))
+detected_terminal_width = terminal_info.columns
 detected_terminal_width -= 1
 
 parser = argparse.ArgumentParser(description = "Print a hex representation of "
