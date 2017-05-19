@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # Kirk Steuber 2017-05-19
 from tkinter import Tk
+import argparse
+
+parser = argparse.ArgumentParser(description = "Clears the clipboard")
+args = parser.parse_args()
 
 # tkinter may be a bit overkill for this, but from my perspective, it is by far
 # the most maintainable and the most cross-platform compatible option.
