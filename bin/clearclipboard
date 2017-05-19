@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+# Kirk Steuber 2017-05-19
+from tkinter import Tk
+
+# tkinter may be a bit overkill for this, but from my perspective, it is by far
+# the most maintable and the most cross-platform compatible option.
+tk_root = Tk()
+tk_root.withdraw()
+tk_root.clipboard_clear()
+tk_root.destroy()
