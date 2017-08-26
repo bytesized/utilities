@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+# Kirk Steuber, 2017-08-26
+import argparse
+import json
+import urllib.request
+
+API_ENDPOINT = "https://api.github.com/markdown"
+
+parser = argparse.ArgumentParser(description = "Render a Markdown document to "
+                                               "HTML using GitHub's API")
+parser.add_argument("input", help = "Path of Markdown document to render")
+parser.add_argument("output", help = "Path of the output HTML file")
+args = parser.parse_args()
+
+request_object = {"mode": "markdown"}
+with open(args.input, "r") as f:
+  request_object["text"] = f.read()
+request_string = json.dumps(request_object).encode("utf8")
+request = urllib.request.Request(API_ENDPOINT, data = request_string,
+                                 headers = {"content-type": "application/json"})
+response = urllib.request.urlopen(request)
+
+with open(args.output, "wb") as f:
+  f.write(response.read())

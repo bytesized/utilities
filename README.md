@@ -9,11 +9,11 @@ Have any questions about them? Feel free to reach out to me. I can be typically 
 # Utilities
 
 * **clearclipboard**: Very simple utility that takes no arguments and empties the clipboard. Tested on Windows 10 and Ubuntu.
-* **digest**: Computes the digest of a file or string using the choice of any algorithm Python has available to it. Tested on Windows 10, Ubuntu and OSX.
+* **digest**: Computes the digest of a file or string using the choice of any algorithm Python has available to it.
 * **hexdump**: Prints the hexadecimal representation of file contents alongside the text contents. Automatically tries to fit output to the terminal width. Tested in Windows 10.
+* **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
 
 # To do
 
 * Write an installer
-* Find my Markdown rendering script and add it to this repo
 * Write a single, unified version of my .bashrc file and add it to this repo. Currently I have a slightly different version on every system I use.
