@@ -9,9 +9,10 @@ Have any questions about them? Feel free to reach out to me. I can be typically 
 # Utilities
 
 * **clearclipboard**: Very simple utility that takes no arguments and empties the clipboard. Tested on Windows 10 and Ubuntu.
-* **digest**: Computes the digest of a file or string using the choice of any algorithm Python has available to it.
+* **digest**: Computes the digest of a file or string using the choice of any algorithm Python has available to it. Tested on Windows 10, OSX and Ubuntu
 * **hexdump**: Prints the hexadecimal representation of file contents alongside the text contents. Automatically tries to fit output to the terminal width. Tested in Windows 10.
 * **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
+* **regmv**: Moves files in a directory by performing regex substitution on their filenames.
 
 # To do
 

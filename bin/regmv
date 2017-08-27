@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# Kirk Steuber, 2017-08-26
+import argparse
+import sys
+from collections import namedtuple
+import re
+import os
+import shutil
+
+SUB_HELP_PAGE = "https://docs.python.org/{}.{}/library/re.html#re.sub".format(
+                 sys.version_info.major, sys.version_info.minor)
+
+def print_error(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def positive_int(value):
+  int_value = int(value)
+  if int_value <= 0:
+    raise argparse.ArgumentTypeError("'{}' is not a valid positive integer"
+                                     .format(int_value))
+  return int_value
+
+parser = argparse.ArgumentParser(description = "Move files based on regex find-"
+                                               "and-replace.")
+parser.add_argument("pattern",
+                    help = "Only files with filenames matching this pattern "
+                           "will be replaced")
+parser.add_argument("replacement",
+                    help = "The replacement string for detination filenames. "
+                           "The syntax follows that of Python's re.sub. "
+                           "Use \g<capture-group> to include capture groups in "
+                           "replacement text. See the documentation at {} "
+                           "for more information".format(SUB_HELP_PAGE))
+parser.add_argument("directory", nargs = "?",
+                    help = "The path to the directory containing the files to "
+                           "be renamed. If omitted, the current working "
+                           "directory will be used.")
+parser.add_argument("-q", "--quiet", action = "store_true",
+                    help = "Display no output on success")
+parser.add_argument("-d", "--dry-run", action = "store_true",
+                    help = "Display file rename actions that would take place "
+                           "without actually moving any files")
+parser.add_argument("-f", "--force", action = "store_true",
+                    help = "Normally, checks are made prior to copying to "
+                           "ensure that the actions taken do not attempt to "
+                           "overwrite any other files or directories. If this "
+                           "option is specified, those checks are skipped")
+parser.add_argument("-r", "--recursive", action = "store_true",
+                    help = "If specified, files to move will be found "
+                           "recursively. Patterns and replacement strings "
+                           "shall be applied to relative paths rather than "
+                           "just filenames")
+parser.add_argument("-i", "--case-insensitive", action = "store_true",
+                    help = "Makes the pattern match case insensitive")
+parser.add_argument("-c", "--create-dirs", action = "store_true",
+                    help = "Allows movement of files into non-existant "
+                           "directories by creating them as needed")
+parser.add_argument("-C", "--match-count", type = positive_int, default = 1,
+                    metavar = "MAX_MATCHES",
+                    help = "Maximum number of replacements to make per "
+                           "filename (default: %(default)s)")
+args = parser.parse_args()
+
+if args.directory is not None:
+  os.chdir(args.directory)
+
+Move_Action = namedtuple("Move_Action", ["source", "dest"])
+actions = []
+existing_files = {}
+regex = re.compile(args.pattern, re.IGNORECASE if args.case_insensitive else 0)
+
+def file_exists(path, source):
+  assert path not in existing_files
+  existing_files[path] = source
+
+def maybe_move(path):
+  dest, match_count = regex.subn(args.replacement, path, args.match_count)
+  if match_count > 0:
+    actions.append(Move_Action(source = path, dest = dest))
+
+if args.recursive:
+  for root, dirs, files in os.walk("."):
+    if len(root) == 1:
+      assert root == "."
+      root = ""
+    else:
+      assert root.startswith("./")
+      root = root[2:]
+
+    for dir in dirs:
+      path = os.path.join(root, dir)
+      file_exists(path, "pre-existing file")
+    for file in files:
+      path = os.path.join(root, file)
+      file_exists(path, "pre-existing file")
+      maybe_move(path)
+else:
+  for filename in os.listdir("."):
+    file_exists(path, "pre-existing file")
+    if os.path.isfile(filename):
+      maybe_move(filename)
+
+if not args.force:
+  error_count = 0
+  for source, dest in actions:
+    del existing_files[source]
+    if dest in existing_files:
+      print_error("Overwrite error: \"{}\" will overwrite \"{}\" ({})"
+                  .format(source, dest, existing_files[dest]))
+      error_count += 1
+      del existing_files[dest]
+    file_exists(dest, "renamed from \"{}\"".format(source))
+  if error_count > 0:
+    print_error("\nErrors encountered. Exiting...\nNo files were moved.")
+    sys.exit(1)
+
+# Directory existance cache
+existing_dirs = {"": True}
+
+for source, dest in actions:
+  if not args.quiet:
+    print("\"{}\" -> \"{}\"".format(source, dest))
+  if not args.dry_run:
+    if args.create_dirs:
+      dir_name = os.path.dirname(dest)
+      if dir_name not in existing_dirs not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        existing_dirs[dir_name] = True
+    shutil.move(source, dest)
