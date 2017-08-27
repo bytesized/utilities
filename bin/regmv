@@ -123,7 +123,7 @@ for source, dest in actions:
   if not args.dry_run:
     if args.create_dirs:
       dir_name = os.path.dirname(dest)
-      if dir_name not in existing_dirs not os.path.exists(dir_name):
+      if dir_name not in existing_dirs and not os.path.exists(dir_name):
         os.makedirs(dir_name)
         existing_dirs[dir_name] = True
     shutil.move(source, dest)
