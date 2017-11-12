@@ -89,27 +89,37 @@ if args.recursive:
 
     for dir in dirs:
       path = os.path.join(root, dir)
-      file_exists(path, "pre-existing file")
+      file_exists(os.path.abspath(path), "pre-existing file")
     for file in files:
       path = os.path.join(root, file)
-      file_exists(path, "pre-existing file")
+      file_exists(os.path.abspath(path), "pre-existing file")
       maybe_move(path)
 else:
   for filename in os.listdir("."):
-    file_exists(filename, "pre-existing file")
+    file_exists(os.path.abspath(filename), "pre-existing file")
     if os.path.isfile(filename):
       maybe_move(filename)
 
 if not args.force:
   error_count = 0
+  file_moved_from = {}
   for source, dest in actions:
-    del existing_files[source]
-    if dest in existing_files:
+    abs_dest = os.path.abspath(dest)
+    abs_source = os.path.abspath(source)
+    del existing_files[abs_source]
+    file_moved_from[abs_source] = True
+
+    if abs_dest in existing_files:
       print_error("Overwrite error: \"{}\" will overwrite \"{}\" ({})"
-                  .format(source, dest, existing_files[dest]))
+                  .format(source, dest, existing_files[abs_dest]))
       error_count += 1
-      del existing_files[dest]
-    file_exists(dest, "renamed from \"{}\"".format(source))
+      del existing_files[abs_dest]
+    elif abs_dest not in file_moved_from and os.path.exists(dest):
+      print_error("Overwrite error: \"{}\" will overwrite \"{}\" "
+                  "(pre-existing, external file)"
+                  .format(source, dest))
+      error_count += 1
+    file_exists(abs_dest, "renamed from \"{}\"".format(source))
   if error_count > 0:
     print_error("\nErrors encountered. Exiting...\nNo files were moved.")
     sys.exit(1)
