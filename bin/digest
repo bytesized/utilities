@@ -32,7 +32,7 @@ args = parser.parse_args()
 
 hasher = getattr(hashlib, args.algorithm)()
 if args.string:
-  hasher.update(args.input)
+  hasher.update(args.input.encode('utf-8'))
 else:
   file_size = os.stat(args.input).st_size
   done = 0
@@ -46,7 +46,7 @@ else:
     show_progress = False
 
   with open(args.input, "rb") as f:
-    for chunk in iter(partial(f.read, CHUNK_SIZE), ""):
+    for chunk in iter(partial(f.read, CHUNK_SIZE), b""):
       hasher.update(chunk)
       done += len(chunk)
       if show_progress:
@@ -55,7 +55,7 @@ else:
         else:
           percentage = done * 100 / file_size
           if percentage != last_percentage:
-            sys.stdout.write("\r{0}%".format(percentage))
+            sys.stdout.write("\r{0:.2f}% ".format(percentage))
             sys.stdout.flush()
             last_percentage = percentage
     if show_progress:
