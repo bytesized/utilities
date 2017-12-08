@@ -1,0 +1,463 @@
+#!/usr/bin/env python3
+# Kirk Steuber
+# 2017-11-15
+import sys
+import argparse
+import select
+from contextlib import contextmanager
+
+if sys.platform == "win32":
+  import msvcrt
+  import ctypes
+
+  class KeyPress:
+    LEFT = b"\xe0\x4b"
+    RIGHT = b"\xe0\x4d"
+    UP = b"\xe0\x48"
+    DOWN = b"\xe0\x50"
+
+    kernel32 = ctypes.windll.kernel32
+    # https://docs.microsoft.com/en-us/windows/console/getstdhandle
+    stdoutDevice = -11
+    stdoutHandle = kernel32.GetStdHandle(stdoutDevice)
+    # https://docs.microsoft.com/en-us/windows/console/setconsolemode
+    enableProcessedOutputFlag = 0x0001
+    enableVirtualTerminalProcessingFlag = 0x0004
+    consoleModeFlags = enableProcessedOutputFlag | enableVirtualTerminalProcessingFlag
+    kernel32.SetConsoleMode(stdoutHandle, consoleModeFlags)
+else:
+  import tty
+  import termios
+
+  class KeyPress:
+    LEFT = "\x1b[D"
+    RIGHT = "\x1b[C"
+    UP = "\x1b[A"
+    DOWN = "\x1b[B"
+
+ROW_LENGTHS = [16, 36, 36, 36, 36, 36, 36, 24]
+STYLE_RESET_CODE = "\x1B[m"
+
+def color_value(value):
+  """ Function for use by argparse's `type` argument
+  """
+  int_value = int(value)
+  if int_value < 0 or int_value > 255:
+    raise argparse.ArgumentTypeError("'{}' is not a valid color value (must be from 0 and 255)"
+                                     .format(int_value))
+  return int_value
+
+def style_code(fg_color = None, bg_color = None, bold = None, underline = None,
+  as_escape_code = False):
+  """
+  Returns the escape sequence to style text. The escape sequence will make no
+  changes to any properties set to `None`.
+    `fg_color` - The color of the text. Must be either a number in [0, 255], `None`, or `False`.
+                 `False` resets the foreground color to the default color.
+    `bg_color` - Same as `fg_color` but controls the background color.
+    `as_escape_code` - If truthy, returns the escaped version of the string so that, when printed,
+                       it will display the escape code rather than having any effect.
+    `bold`, `underline` - Must be `True`, `False`, or `None` to set the corresponding property
+                          on, off, or unchanged respectively.
+  """
+  if fg_color is None and bg_color is None and bold is None and underline is None:
+    # You do not need a code to change nothing...
+    return ""
+
+  if fg_color is False and bg_color is False and bold is False and underline is False:
+    return STYLE_RESET_CODE
+
+  options = []
+
+  if bold is True:
+    options.append("1")
+  elif bold is False:
+    options.append("22")
+
+  if underline is True:
+    options.append("4")
+  elif underline is False:
+    options.append("24")
+
+  if bg_color is False:
+    options.append("49")
+  elif bg_color is not None:
+    options.append("48;5;{}".format(bg_color))
+
+  if fg_color is False:
+    options.append("39")
+  elif fg_color is not None:
+    options.append("38;5;{}".format(fg_color))
+
+  format_string = "\x1B[{}m"
+  if as_escape_code:
+    format_string = format_string.replace("\x1B", "\\x1B")
+
+  return format_string.format(";".join(options))
+
+def static_color_chart(fg_color = None):
+  output = STYLE_RESET_CODE
+  row_index = 0
+  colors_left_in_row = ROW_LENGTHS[row_index]
+  for color_code in range(256):
+    if colors_left_in_row == 0:
+      output += STYLE_RESET_CODE
+      output += "\n"
+      row_index += 1
+      colors_left_in_row = ROW_LENGTHS[row_index]
+    output += style_code(fg_color = fg_color, bg_color = color_code)
+    output += "{:03}".format(color_code)
+    colors_left_in_row -= 1
+  output += STYLE_RESET_CODE
+  return output
+
+class Interactive_Style_Chooser:
+  """
+  Provides a curses-based interactive style chooser that allows for keyboard selection of styles
+  and colors and displays a sample and the color code needed to create it.
+  """
+  DEFAULT_EXAMPLE_STRING = "The quick brown fox jumped over the lazy dog."
+  HELP_TEXT = [" (f) set foreground         (b) set background    (o) bold    (u) underline    ",
+               " (c) change example text    (r) reset             (q) quit "]
+  CHANGE_EXAMPLE_TEXT_MESSAGE = "Type a new example string and press [ENTER]"
+  COLOR_CHART_FG_COLOR = 255
+  COLOR_CHART_FG_SELECTED_COLOR = 0
+  RAW_CODE_FORMAT_STRING = "Raw Code: {}"
+
+  def run(self):
+    """
+    The only external interface. Runs the interactive chooser. Returns when the chooser has exited.
+    """
+    self._init_data()
+    with self._interactive_mode():
+      while True:
+        self._refresh_display()
+        input_char = self._get_char()
+        if input_char == "q":
+          break
+        elif input_char == KeyPress.LEFT:
+          self._col_nav(-1)
+        elif input_char == KeyPress.RIGHT:
+          self._col_nav(1)
+        elif input_char == KeyPress.UP:
+          self._row_nav(-1)
+        elif input_char == KeyPress.DOWN:
+          self._row_nav(1)
+        elif input_char == "f":
+          self._set_background_active(False)
+        elif input_char == "b":
+          self._set_background_active(True)
+        elif input_char == "o":
+          self._toggle_bold()
+        elif input_char == "u":
+          self._toggle_underline()
+        elif input_char == "c":
+          self._ui_change_example()
+        elif input_char == "r":
+          self._reset()
+
+  @contextmanager
+  def _interactive_mode(self):
+    # Enter interactive mode
+    print("\x1b[?25l", end = "")  # Hide cursor
+    print("\x1b[2J", end = "", flush = True)  # Clear display
+    try:
+      # Allow the interactive program to run
+      yield
+    finally:
+      # Exit interactive mode
+      print(STYLE_RESET_CODE, end = "")
+      print("\x1b[?25h", end = "")  # Show cursor
+      print("\x1b[2J", end = "")  # Clear display
+      self._move_terminal_cursor(0, 0, flush = True)
+
+  def _init_data(self):
+    # Current position in the color chart
+    self.chart_cursor_row = 0
+    self.chart_cursor_col = 0
+    self.changing_bg = False  # True when color chart selection changes the background. False when
+                              # selection changes the foreground
+    self.bg_color = None
+    self.fg_color = None
+    self.message = None
+    self.bold = False
+    self.underline = False
+    self.example_text = Interactive_Style_Chooser.DEFAULT_EXAMPLE_STRING
+
+    row_index = 0
+    self.message_row_index = row_index
+    row_index += 2  # Message line + Blank line
+    self.color_chart_first_row_index = row_index
+    row_index += len(ROW_LENGTHS)  # color chart lines
+    row_index += 1  # Blank line
+    self.example_string_row_index = row_index
+    row_index += 2  # Example string line + blank line
+    self.raw_code_row_index = row_index
+    row_index += 2  # Raw code line + Blank line
+    self.help_row_index = row_index
+    self.row_count = row_index + len(Interactive_Style_Chooser.HELP_TEXT)
+
+    self.col_count = max(max(ROW_LENGTHS),
+                         len(Interactive_Style_Chooser.DEFAULT_EXAMPLE_STRING),
+                         max(map(len, Interactive_Style_Chooser.HELP_TEXT)),
+                         len(Interactive_Style_Chooser.CHANGE_EXAMPLE_TEXT_MESSAGE))
+
+  def _get_char(self):
+    # Puts the cursor at the bottom right corner before getting a character of user input
+    # Shouldn't actually be necessary because the cursor should be hidden
+    self._move_terminal_cursor(self.row_count - 1, self.col_count - 1, flush = True)
+
+    if sys.platform == "win32":
+      key = msvcrt.getch()
+      # See documentation for getch:
+      # https://msdn.microsoft.com/en-us/library/078sfkak%28v=vs.110%29.aspx
+      if key == b"\x00" or key == b"\xe0":
+        return key + msvcrt.getch()
+      return key.decode("utf-8")
+    else:
+      def get_byte():
+        char = ""
+        while char == "":
+          fd = sys.stdin.fileno()
+          old_settings = termios.tcgetattr(fd)
+          try:
+            tty.setraw(sys.stdin.fileno())
+            char = sys.stdin.read(1)
+          finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return char
+
+      key = get_byte()
+      if key != "\x1b":
+        return key
+
+      # Read CSI sequence
+      # https://en.wikipedia.org/wiki/ANSI_escape_code#CSI_sequences
+      next_char = get_byte()
+      if next_char == "[":
+        key += next_char
+      else:
+        # Oops. This isn't a CSI sequence
+        # Since the program currently does not need to read escape key presses, we will just ignore
+        # them.
+        return next_char
+
+      while True:
+        next_char = get_byte()
+        key += next_char
+        if ord(next_char) >= 64 and ord(next_char) <= 126:
+          break
+      return key
+
+  def _refresh_display(self):
+    # Clear screen
+    print("\x1b[2J", end = "")
+    print(STYLE_RESET_CODE, end = "")
+
+    # Print any message that has been set
+    if self.message:
+      self._move_terminal_cursor(0, self.message_row_index)
+      print(self.message, end = "")
+      self.message = None
+
+    # Print color chart
+    row_index = 0
+    col_index = 0
+    colors_in_row = ROW_LENGTHS[row_index]
+    self._move_terminal_cursor(0, self.color_chart_first_row_index)
+    for color_code in range(256):
+      if col_index == colors_in_row:
+        row_index += 1
+        col_index = 0
+        colors_in_row = ROW_LENGTHS[row_index]
+        self._move_terminal_cursor(0, row_index + self.color_chart_first_row_index)
+      if col_index == self.chart_cursor_col and row_index == self.chart_cursor_row:
+        fg_color = Interactive_Style_Chooser.COLOR_CHART_FG_SELECTED_COLOR
+      else:
+        fg_color = Interactive_Style_Chooser.COLOR_CHART_FG_COLOR
+      print(style_code(bg_color = color_code, fg_color = fg_color), end = "")
+      print("{:03}".format(color_code), end = "")
+      col_index += 1
+
+    # Print example string
+    print(STYLE_RESET_CODE, end = "")
+    self._move_terminal_cursor(0, self.example_string_row_index)
+    print(style_code(bg_color = self.bg_color,
+                     fg_color = self.fg_color,
+                     bold = self.bold if self.bold else None,
+                     underline = self.underline if self.underline else None),
+          end = "")
+    print(self.example_text, end = "")
+
+    # Print the raw code
+    self._move_terminal_cursor(0, self.raw_code_row_index)
+    print(STYLE_RESET_CODE, end = "")
+    print(Interactive_Style_Chooser.RAW_CODE_FORMAT_STRING.format(
+          style_code(bg_color = self.bg_color,
+                     fg_color = self.fg_color,
+                     bold = self.bold if self.bold else None,
+                     underline = self.underline if self.underline else None,
+                     as_escape_code = True)),
+          end = "")
+
+    # Print the help string
+    print(STYLE_RESET_CODE, end = "")
+    for index, row_text in enumerate(Interactive_Style_Chooser.HELP_TEXT):
+      self._move_terminal_cursor(0, self.help_row_index + index)
+      print(row_text, end = "")
+
+    # Flush the output
+    print("", end = "", flush = True)
+
+  def _move_terminal_cursor(self, x_coord, y_coord, flush = False):
+    """ Takes 0 indexed x and y coordinates
+    """
+    print("\x1b[{};{}H".format(y_coord + 1, x_coord + 1), end = "", flush = flush)
+
+  def _update_color(self):
+    new_color = 0
+    for row_index in range(self.chart_cursor_row):
+      new_color += ROW_LENGTHS[row_index]
+    new_color += self.chart_cursor_col
+    if self.changing_bg:
+      self.bg_color = new_color
+    else:
+      self.fg_color = new_color
+
+  def _row_nav(self, delta):
+    """ Navigates to another row
+    """
+    self.chart_cursor_row += delta
+    if self.chart_cursor_row < 0:
+      self.chart_cursor_row = 0
+    elif self.chart_cursor_row >= len(ROW_LENGTHS):
+      self.chart_cursor_row = len(ROW_LENGTHS) - 1
+    if self.chart_cursor_col >= ROW_LENGTHS[self.chart_cursor_row]:
+      self.chart_cursor_col = ROW_LENGTHS[self.chart_cursor_row] - 1
+    self._update_color()
+
+  def _col_nav(self, delta):
+    """ Navigates to another column
+    """
+    self.chart_cursor_col += delta
+    if self.chart_cursor_col < 0:
+      self.chart_cursor_col = 0
+    elif self.chart_cursor_col >= ROW_LENGTHS[self.chart_cursor_row]:
+      self.chart_cursor_col = ROW_LENGTHS[self.chart_cursor_row] - 1
+    self._update_color()
+
+  def _set_background_active(self, background_active):
+    """ Changes whether the selection affects the foreground or background of the example text.
+    """
+    self.changing_bg = background_active
+    self._update_color()
+
+  def _toggle_bold(self):
+    self.bold = not self.bold
+    if self.bold is True:
+      self.message = "Bold code added"
+    elif self.bold is False:
+      self.message = "Bold code removed"
+
+  def _toggle_underline(self):
+    self.underline = not self.underline
+    if self.underline is True:
+      self.message = "Underline code added"
+    elif self.underline is False:
+      self.message = "Underline code removed"
+
+  def _ui_change_example(self):
+    """ Prompts the user to give a new example string in the UI and changes it.
+    """
+    self.example_text = ""
+    message = "Type to change example text. Press the [RETURN] key when finished."
+    while True:
+      self.message = message  # Don't let this message expire until we are done
+      self._refresh_display()
+      input_char = self._get_char()
+      if len(input_char) > 1:  # ANSI Control sequences
+        pass
+      elif input_char == "\x7f" or input_char == "\x08":  # Backspace/Delete character
+        if len(self.example_text) >= 1:
+          self.example_text = self.example_text[0:-1]
+      elif input_char == "\x0d":  # Newline character
+        break
+      elif ord(input_char) < 32:  # Unprintable characters
+        pass
+      else:
+        self.example_text += input_char
+
+  def _reset(self):
+    """ Resets the style of the example text and the raw code
+    """
+    self.bg_color = None
+    self.fg_color = None
+    self.bold = False
+    self.underline = False
+    self.message = "Style Reset"
+
+def main():
+  print(STYLE_RESET_CODE, end = "")
+
+  parser = argparse.ArgumentParser(description = "Display a chooser for terminal colors. ",
+                                   epilog = "Help for individual commands can be obtained using "
+                                            "`%(prog)s COMMAND -h`")
+  subparsers = parser.add_subparsers(dest = "command", metavar = "COMMAND")
+  subparsers.required = True
+  interactive_parser = subparsers.add_parser("interactive",
+                                             help = "Interactive Style Chooser.",
+                                             description = "Interactive Style Chooser. Allows "
+                                                           "keyboard navigation of a color chart "
+                                                           "and toggling of options such as bold "
+                                                           "and underline. The escape code for "
+                                                           "the selected style will be shown")
+  static_parser = subparsers.add_parser("static",
+                                        help = "Static Color Chooser.",
+                                        description = "Static Color Chooser. Prints a colored "
+                                                      "table of all color codes. These codes can "
+                                                      "be used with the `lookup` command's "
+                                                      "--fg-color and --bg-color arguments to "
+                                                      "generate escape codes that produce the "
+                                                      "desired colors.")
+  static_parser.add_argument("-c", "--fg-color", type = color_value, metavar = "COLOR",
+                             help = "Sets the foreground color used to display the color chooser. "
+                                    "Must be an integer from 0 to 255.")
+  style_lookup_parser = subparsers.add_parser("lookup",
+                                              help = "Lookup an escape code for a color or style.",
+                                              description = "Looks up the escape code for a color "
+                                                            "and/or style. By default, it is "
+                                                            "printed so that the escape code can "
+                                                            "be read by humans rather than being "
+                                                            "printed so that the escape code "
+                                                            "affects further text. Note that if "
+                                                            "no options are specified, there will "
+                                                            "be no output because no code is "
+                                                            "necessary for no style change.")
+  style_lookup_parser.add_argument("-c", "--fg-color", type = color_value, metavar = "COLOR",
+                                   help = "Specifies a text color. Must be an integer from 0 to "
+                                          "255.")
+  style_lookup_parser.add_argument("-b", "--bg-color", type = color_value, metavar = "COLOR",
+                                   help = "Specifies a background text color. Must be an integer "
+                                          "from 0 to 255.")
+  style_lookup_parser.add_argument("-B", "--bold", action = "store_true", default = None,
+                                   help = "Specifies that the text should be bold.")
+  style_lookup_parser.add_argument("-u", "--underline", action = "store_true", default = None,
+                                   help = "Specifies that the text should be underlined.")
+  style_lookup_parser.add_argument("-r", "--raw-code", action = "store_true",
+                                   help = "Outputs the raw code (which will actually affect "
+                                          "subsequent text) rather than the printable escape "
+                                          "sequence")
+  args = parser.parse_args()
+
+  if args.command == "interactive":
+    chooser = Interactive_Style_Chooser()
+    chooser.run()
+  elif args.command == "static":
+    print(static_color_chart(args.fg_color))
+  elif args.command == "lookup":
+    print(style_code(args.fg_color, args.bg_color, args.bold, args.underline,
+                     as_escape_code = not args.raw_code),
+          end = "" if args.raw_code else "\n")
+
+if __name__ == "__main__":
+  main()

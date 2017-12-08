@@ -2,7 +2,7 @@ These are some simple utilities I have written. Perhaps they will be helpful to 
 
 All of my utilities have help pages accessible with the `-h` or `--help` option. Please use them.
 
-I have done my best to make my utilities compatible with modern versions of Linux, Windows, and OSX. I cannot, however, make any guarantees about their compatibility or functionality. I have done my best to make them run as expected and to prevent them from causing unexpected side effects, but ultimately you choose to use them at your own risk.
+I have done my best to make my utilities compatible with modern versions of Linux, Windows, and OSX. I cannot, however, make any guarantees about their compatibility or functionality. I have also done my best to make them run as expected and to prevent them from causing unexpected side effects, but ultimately you choose to use them at your own risk.
 
 Have any questions about them? Feel free to reach out to me. I can be typically be reached between 9am and 5pm (Pacific Time) Monday-Friday on the [Mozilla IRC](https://wiki.mozilla.org/IRC). I go by bytesized.
 
@@ -13,6 +13,7 @@ Have any questions about them? Feel free to reach out to me. I can be typically 
 * **hexdump**: Prints the hexadecimal representation of file contents alongside the text contents. Automatically tries to fit output to the terminal width. Tested in Windows 10.
 * **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
 * **regmv**: Moves files in a directory by performing regex substitution on their filenames.
+* **colorchooser**: Helper for choosing a terminal color scheme and generating the ANSI escape code to produce that color scheme. Can output a static color chart, enter an interactive style chooser, or generate an ANSI escape sequence based on style information passed as arguments. Tested on OSX and Windows 10.
 
 # To do
 
