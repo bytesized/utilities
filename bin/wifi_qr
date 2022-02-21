@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+# Kirk Steuber, 2022-02-17
+import argparse
+from collections import namedtuple
+from PIL import Image, ImageDraw, ImageFont
+import qrcode
+
+TEXT_HEIGHT_BUFFER = 4
+WIFI_SPACING = 50
+
+parser = argparse.ArgumentParser(description = "Create a WiFi connection image including text and "
+                                               "QR codes to make it easy for guests to use the "
+                                               "WiFi.")
+parser.add_argument("save_path", help = "Path to save the created image to.")
+args = parser.parse_args()
+
+wifi_info = namedtuple("wifi_info", ["ssid", "enc_type", "password", "hidden"])
+
+# Take WiFi network information interactively instead of via command line arguments. This is mostly
+# to prevent the WiFi password from ending up in my BASH history.
+networks = []
+while True:
+  ssid = input("WiFi Name (SSID): ")
+
+  enc_type = None
+  while enc_type not in ["WPA", "WEP", ""]:
+    if enc_type is not None:
+      print("Invalid Encryption Type.")
+    enc_type = input("Encryption Type <WPA|WEP|>: ")
+
+  password = input("WiFi Password: ")
+
+  hidden = None
+  while hidden not in ["true", "false", ""]:
+    if hidden is not None:
+      print("Invalid 'hidden' value.")
+    hidden = input("Is WiFi hidden <true|false|>: ")
+
+  networks.append(wifi_info(ssid, enc_type, password, hidden))
+
+  again = None
+  while again not in ["y", "n"]:
+    if again is not None:
+      print("Invalid choice.")
+    again = input("Enter another WiFi network? <y|n>: ")
+
+  if again == "n":
+    break
+
+
+# These are pretty much macOS specific and will have to be changed for other OS's.
+ssid_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 32)
+password_font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
+
+def make_text_image(text, font):
+  global TEXT_HEIGHT_BUFFER
+
+  width, height = font.getsize(text)
+  text_image = Image.new("RGB", (width, height + TEXT_HEIGHT_BUFFER), "white")
+  d = ImageDraw.Draw(text_image)
+  d.text((0, 0), text, font = font, fill = "black")
+  return text_image
+
+wifi_images = namedtuple("wifi_images", ["ssid_text", "password_text", "qr_code"])
+network_images = []
+width = 0
+height = 0
+for network in networks:
+  if height > 0:
+    height += WIFI_SPACING
+
+  ssid_text = make_text_image(network.ssid, ssid_font)
+  if ssid_text.width > width:
+    width = ssid_text.width
+  height += ssid_text.height
+
+  password_text = make_text_image(network.password, password_font)
+  if password_text.width > width:
+    width = password_text.width
+  height += password_text.height
+
+  qr = qrcode.QRCode(
+    version = None,
+    error_correction = qrcode.constants.ERROR_CORRECT_H,
+    box_size = 10,
+    border = 4,
+  )
+  qr.add_data(
+    f"WIFI:S:{network.ssid};T:{network.enc_type};P:{network.password};H:{network.hidden};;"
+  )
+  qr.make(fit = True)
+  qr_image = qr.make_image(fill_color="black", back_color="white")
+  # For some reason, qr_image.width keeps returning nonsense. But qr_image.size seems to be
+  # accurate.
+  qr_image_width, qr_image_height = qr_image.size
+  if qr_image_width > width:
+    width = qr_image_width
+  height += qr_image.height
+
+  network_images.append(wifi_images(ssid_text, password_text, qr_image))
+
+composite = Image.new("RGB", (width, height), "white")
+current_height = 0
+center_x = width // 2
+for images in network_images:
+  for image in [images.ssid_text, images.password_text, images.qr_code]:
+    image_width, image_height = image.size
+    x = center_x - (image_width // 2)
+    composite.paste(image, (x, current_height))
+    current_height += image_height
+  current_height += WIFI_SPACING
+
+composite.save(args.save_path)
