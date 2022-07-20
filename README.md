@@ -4,7 +4,7 @@ All of my utilities have help pages accessible with the `-h` or `--help` option.
 
 I have done my best to make my utilities compatible with modern versions of Linux, Windows, and OSX. I cannot, however, make any guarantees about their compatibility or functionality. I have also done my best to make them run as expected and to prevent them from causing unexpected side effects, but ultimately you choose to use them at your own risk.
 
-Have any questions about them? Feel free to reach out to me. I can be typically be reached between 9am and 5pm (Pacific Time) Monday-Friday on the [Mozilla IRC](https://wiki.mozilla.org/IRC). I go by bytesized.
+Have any questions about them? Feel free to reach out to me. I can be typically be reached between 9am and 5pm (Pacific Time) Monday-Friday on the [Mozilla Chat Server](https://chat.mozilla.org). I go by bytesized.
 
 # Utilities
 
