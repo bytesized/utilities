@@ -19,3 +19,7 @@ Have any questions about them? Feel free to reach out to me. I can be typically 
 
 * Write an installer
 * Write a single, unified version of my .bashrc file and add it to this repo. Currently I have a slightly different version on every system I use.
+* Add config files for vim, mercurial, sublime text
+* Add my Greasemonkey scripts
+* Write an update checking script
+* Write a calculator utility
