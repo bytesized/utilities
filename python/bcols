@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+# Kirk Steuber, 2017-02-03
+import argparse
+import sys
+
+def main():
+  parser = argparse.ArgumentParser(description = 'Format data into columns')
+  parser.add_argument('delimeter', help = 'Data to be digested or location of data')
+  args = parser.parse_args()
+
+  delimeter = args.delimeter
+  text = sys.stdin.read()
+  print(make_table(text, delimeter))
+
+def make_table(text, delimeter):
+  lines = text.split("\n")
+
+  # Count largest column widths
+  column_widths = []
+  for line in lines:
+    columns = line.split(delimeter)
+    for c_index, column in enumerate(columns):
+      if c_index == len(column_widths):
+        column_widths.append(len(column))
+      else:
+        column_widths[c_index] = max(column_widths[c_index], len(column))
+
+  # Output, padding columns
+  output = ""
+  first_line = True
+  for line in lines:
+    if first_line:
+      first_line = False
+    else:
+      output += "\n"
+
+    columns = line.split(delimeter)
+    first_column = True
+    for c_index, column in enumerate(columns):
+      if first_column:
+        first_column = False
+      else:
+        output += "  "
+      output += column.ljust(column_widths[c_index])
+
+  return output
+
+if __name__ == '__main__':
+  main()

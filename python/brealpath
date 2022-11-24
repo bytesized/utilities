@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+# Kirk Steuber, 2022-07-25
+
+# This is a real dumb script, but `realpath` doesn't exist on macOS for some dumb reason.
+
+import argparse
+import os.path
+
+parser = argparse.ArgumentParser(description = 'Get the real path of a given path')
+parser.add_argument('path', help = 'Input path')
+args = parser.parse_args()
+
+print(os.path.realpath(args.path))
