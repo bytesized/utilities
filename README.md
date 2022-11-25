@@ -6,10 +6,6 @@ I have done my best to make my utilities compatible with modern versions of Linu
 
 # Utilities
 
-## BASH
-
-* **universal.bashrc**: This `.bashrc` file should be usable across operating systems. It features an unnecessarily heavy, full-color prompt.
-
 ## Python
 
 The Python utilities lack standard Python file extensions. But because they each contain a Python shebang, they should execute properly without having to explicitly invoke the Python executable.
@@ -22,6 +18,10 @@ The Python utilities lack standard Python file extensions. But because they each
 * **hexdump**: Prints the hexadecimal representation of file contents alongside the text contents. Automatically tries to fit output to the terminal width. Tested in Windows 10.
 * **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
 * **regmv**: Moves files in a directory by performing regex substitution on their filenames.
+
+# Configuration Files
+
+* **universal.bashrc**: This `.bashrc` file should be usable across operating systems. It features an unnecessarily heavy, full-color prompt.
 
 # To do
 
