@@ -124,7 +124,7 @@ if not args.force:
     print_error("\nErrors encountered. Exiting...\nNo files were moved.")
     sys.exit(1)
 
-# Directory existance cache
+# Directory existence cache
 existing_dirs = {"": True}
 
 for source, dest in actions:
