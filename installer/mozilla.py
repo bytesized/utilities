@@ -3,7 +3,12 @@
 import os
 import shutil
 
-def configure(paths, config):
+from . import global_vars
+
+def configure():
+  config = global_vars.get_config()
+  paths = global_vars.get_paths()
+
   if config["uninstall"]:
     # There isn't really anything to be done here. All the Mozilla configuration lives in the
     # utilities user config directory which will be removed during the uninstall anyways.

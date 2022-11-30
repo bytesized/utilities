@@ -7,7 +7,7 @@ import os
 import shutil
 import sys
 
-from . import bashrc, mozilla
+from . import bashrc, global_vars, mozilla
 
 paths = {}
 paths["user"] = {}
@@ -174,6 +174,8 @@ config["uninstall"] = args.uninstall
 config["quiet"] = args.quiet
 config["leave-config"] = args.leave_config
 
+global_vars.init(config, paths)
+
 def output(*args):
   global config
 
@@ -192,10 +194,10 @@ if config["configure"]:
   output("=== Configure Stage Start")
 
   output("Configuring Mozilla...")
-  mozilla.configure(paths, config)
+  mozilla.configure()
 
   output("Configuring bashrc...")
-  bashrc.configure(paths, config)
+  bashrc.configure()
 
   output("=== Configure Stage Complete\n")
 

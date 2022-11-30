@@ -3,7 +3,7 @@
 import os
 import tempfile
 
-from . import cygpath
+from . import cygpath, global_vars
 
 BASH_SHEBANG = "#!/bin/bash\n"
 LOADER_UUID = "b52960a2-e8ed-4833-a86f-9aa7b401a557"
@@ -28,7 +28,10 @@ class BadFileContents(Exception):
     """
   pass
 
-def configure(paths, config):
+def configure():
+  config = global_vars.get_config()
+  paths = global_vars.get_paths()
+
   # It doesn't seem to be entirely consistent whether the configuration is loaded from `.bashrc` or
   # `.bash_profile`. We are going to add the loader to both of them and just have the loader make
   # sure that it isn't loading the script twice.
@@ -41,7 +44,7 @@ def configure(paths, config):
   additional_bashrc_path = os.path.join(paths["user"]["config"], "additional.bashrc")
   additional_bashrc_contents = BASH_SHEBANG
   additional_bashrc_contents += "\n"
-  python_script_path = cygpath.to_unix_path(config, paths, paths["source"]["python"])
+  python_script_path = cygpath.to_unix_path(paths["source"]["python"])
   additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", python_script_path)
   additional_bashrc_contents += "\n"
 
