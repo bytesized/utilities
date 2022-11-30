@@ -3,6 +3,8 @@
 import os
 import tempfile
 
+from . import cygpath
+
 BASH_SHEBANG = "#!/bin/bash\n"
 LOADER_UUID = "b52960a2-e8ed-4833-a86f-9aa7b401a557"
 LOADER_START_SENTINEL = f"# >>> BYTESIZED BASHRC LOADER START({LOADER_UUID}) >>>\n"
@@ -39,8 +41,8 @@ def configure(paths, config):
   additional_bashrc_path = os.path.join(paths["user"]["config"], "additional.bashrc")
   additional_bashrc_contents = BASH_SHEBANG
   additional_bashrc_contents += "\n"
-  additional_bashrc_contents += \
-    PATH_ADD_CODE.replace("__PATH_ADDITION__", paths["source"]["python"])
+  python_script_path = cygpath.to_unix_path(config, paths, paths["source"]["python"])
+  additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", python_script_path)
   additional_bashrc_contents += "\n"
 
   with open(additional_bashrc_path, "w") as f:

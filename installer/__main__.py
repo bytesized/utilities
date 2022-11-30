@@ -21,6 +21,10 @@ paths["source"]["root"] = os.path.dirname(os.path.dirname(os.path.realpath(__fil
 paths["source"]["config"] = os.path.join(paths["source"]["root"], "config")
 paths["source"]["python"] = os.path.join(paths["source"]["root"], "python")
 
+paths["system"] = {}
+if os.name == "nt":
+  paths["system"]["cygpath"] = shutil.which("cygpath")
+
 install_config_path = os.path.join(paths["user"]["config"], "install.json")
 
 # - `default` should be the default value. It will not be validated or parsed, so it should already
@@ -155,6 +159,11 @@ if not args.uninstall:
   os.makedirs(paths["user"]["root"], exist_ok = True)
   os.makedirs(paths["user"]["config"], exist_ok = True)
   os.makedirs(paths["user"]["data"], exist_ok = True)
+
+  # Some additional validation that shouldn't be necessary if we are uninstalling.
+  if os.name == "nt" and paths["system"]["cygpath"] is None:
+    print("Error: Cannot find 'cygpath' in PATH.", file = sys.stderr)
+    sys.exit(1)
 
   with open(install_config_path, "w") as f:
     json.dump(config, f)
