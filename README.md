@@ -4,6 +4,10 @@ All of my utilities have help pages accessible with the `-h` or `--help` option.
 
 I have done my best to make my utilities compatible with modern versions of Linux, Windows, and OSX. I cannot, however, make any guarantees about their compatibility or functionality. I have also done my best to make them run as expected and to prevent them from causing unexpected side effects, but ultimately you choose to use them at your own risk.
 
+# Installer
+
+The installer requires Python3. It can be run simply by calling the `install` script in the root of the repository. To uninstall, run the installer again with the `--uninstall` argument.
+
 # Utilities
 
 ## Python
@@ -25,8 +29,8 @@ The Python utilities lack standard Python file extensions. But because they each
 
 # To do
 
-* Write an installer
 * Add config files for vim, mercurial, sublime text
 * Add my Greasemonkey scripts
 * Write an update checking script
 * Write a calculator utility
+* Write UUID generator utility

@@ -6,6 +6,8 @@
 # with other things that might be similarly named, so we will prefix with `_B_` and hope that that
 # is enough.
 
+_B_BASHRC_LOADED="true"
+
 _B_OS="unknown"
 if [[ "$OSTYPE" == "msys" ]]; then
   _B_OS="windows"
@@ -17,17 +19,15 @@ fi
 
 _B_UTIL_DIR="${HOME}/.bytesized_utilites"
 _B_UTIL_CONFIG_DIR="${_B_UTIL_DIR}/config"
-_B_UTIL_BIN_DIR="${_B_UTIL_DIR}/bin"
 _B_UTIL_DATA_DIR="${_B_UTIL_DIR}/data"
 
 _B_MOZILLA="false"
 _B_MOZILLA_CONFIG="${_B_UTIL_CONFIG_DIR}/mozilla"
-if [[ -f "$_B_MOZILLA_CONFIG" ]]; then
+if [[ -d "$_B_MOZILLA_CONFIG" ]]; then
   _B_MOZILLA="true"
 fi
 
 export PATH="${PATH}:${HOME}/bin"
-export PATH="${PATH}:${_B_UTIL_BIN_DIR}"
 if [[ "$_B_OS" == "windows" ]]; then
   export PATH="${PATH}:/c/Program Files/Git/bin"
   if [[ "$_B_MOZILLA" == "true" ]]; then
@@ -44,7 +44,7 @@ elif [[ "$_B_OS" == "linux" ]]; then
   export PATH="${PATH}:/sbin"
   export PATH="${PATH}:${HOME}/.local/bin/"
   if [[ "$_B_MOZILLA" == "true" ]]; then
-    if [ -f "${HOME}/.cargo/env" ]
+    if [[ -f "${HOME}/.cargo/env" ]]
     then
       . "${HOME}/.cargo/env"
     fi
@@ -79,6 +79,13 @@ export LESS_TERMCAP_so=$'\E[01;44;33m'
 export LESS_TERMCAP_ue=$'\E[0m'
 export LESS_TERMCAP_us=$'\E[01;32m'
 
+# The utilities installer script may write some additional configuration here. Load it if it
+# exists.
+if [[ -f "${_B_UTIL_CONFIG_DIR}/additional.bashrc" ]]
+then
+  . "${_B_UTIL_CONFIG_DIR}/additional.bashrc"
+fi
+
 # Exit if this is not an interactive session
 if ! [[ $- == *i* ]]
 then
@@ -97,7 +104,7 @@ alias du='du -h'
 # value of these variables rather than having them randomly color my env output
 alias env="env | sed 's/'$'\E''/\\\\E/'"
 alias grep='grep --color=auto -E'
-alias ls='ls -h --color=auto'
+alias ls='ls -h --color=always'
 alias lsb='$(which ls) --color=auto -l'
 alias mv='mv -i'
 alias vi='vim'
@@ -621,7 +628,7 @@ function pre_prompt {
   local info_bar_size=$(echo -n "${_B_INFO_BAR}" | wc -c | tr -d " ")
 
   # Determine the space remaining on the screen to be filled
-  if [ -z "${COLUMNS}" ]
+  if [[ -z "${COLUMNS}" ]]
   then
     local chars_left=$(( 80 - ${prompt_size} ))
   else
