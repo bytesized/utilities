@@ -113,6 +113,9 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--uninstall", "-u", action = "store_true",
                     help = "If this is specified, this script uninstalls instead of installing")
+parser.add_argument("--leave-config", "-L", action = "store_true",
+                    help = "Only relevant if --uninstall is specified. Prevents configuration and "
+                           "data from being cleaned up during the uninstall.")
 parser.add_argument("--quiet", "-q", action = "store_true",
                     help = "Whether or not to output status text")
 
@@ -160,6 +163,7 @@ if not args.uninstall:
 # it to the disk.
 config["uninstall"] = args.uninstall
 config["quiet"] = args.quiet
+config["leave-config"] = args.leave_config
 
 def output(*args):
   global config
@@ -189,11 +193,12 @@ if config["configure"]:
 if config["uninstall"]:
   output("Cleanup Start")
 
-  output(f'Removing "{paths["user"]["root"]}"...')
-  try:
-    shutil.rmtree(paths["user"]["root"])
-  except FileNotFoundError:
-    pass
+  if not config["leave-config"]:
+    output(f'Removing "{paths["user"]["root"]}"...')
+    try:
+      shutil.rmtree(paths["user"]["root"])
+    except FileNotFoundError:
+      pass
 
   output("Cleanup Complete\n")
 
