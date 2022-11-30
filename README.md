@@ -33,4 +33,3 @@ The Python utilities lack standard Python file extensions. But because they each
 * Add my Greasemonkey scripts
 * Write an update checking script
 * Write a calculator utility
-* Write UUID generator utility
