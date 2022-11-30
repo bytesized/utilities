@@ -26,7 +26,7 @@ parser.add_argument("pattern",
                     help = "Only files with filenames matching this pattern "
                            "will be replaced")
 parser.add_argument("replacement",
-                    help = "The replacement string for detination filenames. "
+                    help = "The replacement string for destination filenames. "
                            "The syntax follows that of Python's re.sub. "
                            "Use \g<capture-group> to include capture groups in "
                            "replacement text. See the documentation at {} "
@@ -53,7 +53,7 @@ parser.add_argument("-r", "--recursive", action = "store_true",
 parser.add_argument("-i", "--case-insensitive", action = "store_true",
                     help = "Makes the pattern match case insensitive")
 parser.add_argument("-c", "--create-dirs", action = "store_true",
-                    help = "Allows movement of files into non-existant "
+                    help = "Allows movement of files into non-existent "
                            "directories by creating them as needed")
 parser.add_argument("-C", "--match-count", type = positive_int, default = 1,
                     metavar = "MAX_MATCHES",
