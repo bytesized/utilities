@@ -17,14 +17,14 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
   _B_OS="linux"
 fi
 
-_B_UTIL_DIR="${HOME}/.bytesized_utilites"
-_B_UTIL_CONFIG_DIR="${_B_UTIL_DIR}/config"
-_B_UTIL_DATA_DIR="${_B_UTIL_DIR}/data"
+export _B_UTIL_DIR="${HOME}/.bytesized_utilites"
+export _B_UTIL_CONFIG_DIR="${_B_UTIL_DIR}/config"
+export _B_UTIL_DATA_DIR="${_B_UTIL_DIR}/data"
 
-_B_MOZILLA="false"
-_B_MOZILLA_CONFIG="${_B_UTIL_CONFIG_DIR}/mozilla"
+export _B_MOZILLA="false"
+export _B_MOZILLA_CONFIG="${_B_UTIL_CONFIG_DIR}/mozilla"
 if [[ -d "$_B_MOZILLA_CONFIG" ]]; then
-  _B_MOZILLA="true"
+  export _B_MOZILLA="true"
 fi
 
 export PATH="${PATH}:${HOME}/bin"

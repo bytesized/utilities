@@ -5,9 +5,33 @@ from collections import namedtuple
 import json
 import os
 import shutil
+import stat
 import sys
 
-from . import bashrc, global_vars, mozilla
+from . import bashrc, external_repos, global_vars, mozilla, rust
+from .output import output
+
+def force_remove_dir(dir_path):
+  already_fixed = set()
+  while True:
+    try:
+      shutil.rmtree(dir_path)
+    except FileNotFoundError:
+      pass
+    except PermissionError as ex:
+      if ex.filename in already_fixed:
+        raise ex
+      os.chmod(ex.filename, stat.S_IWRITE)
+      already_fixed.add(ex.filename)
+      continue
+    break
+
+def create_dirs_recursive(p):
+  for value in p.values():
+    if isinstance(value, dict):
+      create_dirs_recursive(value)
+    else:
+      os.makedirs(value, exist_ok = True)
 
 paths = {}
 paths["user"] = {}
@@ -15,6 +39,7 @@ paths["user"]["home"] = os.path.expanduser("~")
 paths["user"]["root"] = os.path.join(paths["user"]["home"], ".bytesized_utilites")
 paths["user"]["config"] = os.path.join(paths["user"]["root"], "config")
 paths["user"]["data"] = os.path.join(paths["user"]["root"], "data")
+paths["user"]["repos"] = os.path.join(paths["user"]["root"], "repos")
 
 paths["source"] = {}
 paths["source"]["root"] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -24,6 +49,8 @@ paths["source"]["python"] = os.path.join(paths["source"]["root"], "python")
 paths["system"] = {}
 if os.name == "nt":
   paths["system"]["cygpath"] = shutil.which("cygpath")
+paths["system"]["cargo"] = shutil.which("cargo")
+paths["system"]["git"] = shutil.which("git")
 
 install_config_path = os.path.join(paths["user"]["config"], "install.json")
 
@@ -156,14 +183,19 @@ for config_value in config_options:
 if not args.uninstall:
   # Don't create all the directories until after we run `argparse`. It sucks to throw an error even
   # when showing the help text.
-  os.makedirs(paths["user"]["root"], exist_ok = True)
-  os.makedirs(paths["user"]["config"], exist_ok = True)
-  os.makedirs(paths["user"]["data"], exist_ok = True)
+  create_dirs_recursive(paths["user"])
 
   # Some additional validation that shouldn't be necessary if we are uninstalling.
   if os.name == "nt" and paths["system"]["cygpath"] is None:
     print("Error: Cannot find 'cygpath' in PATH.", file = sys.stderr)
     sys.exit(1)
+  if config["build"]:
+    if paths["system"]["cargo"] is None:
+      print("Error: Cannot find 'cargo' in PATH.", file = sys.stderr)
+      sys.exit(1)
+    if paths["system"]["git"] is None:
+      print("Error: Cannot find 'git' in PATH.", file = sys.stderr)
+      sys.exit(1)
 
   with open(install_config_path, "w") as f:
     json.dump(config, f)
@@ -176,17 +208,16 @@ config["leave-config"] = args.leave_config
 
 global_vars.init(config, paths)
 
-def output(*args):
-  global config
-
-  if not config["quiet"]:
-    print(*args)
-
 if config["build"] and not config["uninstall"]:
   output("=== Build Stage Start")
 
-  # Note: Though I plan to add utilities that need to be built, I haven't yet. So this is currently
-  # a no-op.
+  output("== Fetching Code Start")
+  external_repos.fetch()
+  output("== Fetching Code Complete\n")
+
+  output("== Build Rust Start")
+  rust.build()
+  output("== Build Rust Complete")
 
   output("=== Build Stage Complete\n")
 
@@ -202,16 +233,16 @@ if config["configure"]:
   output("=== Configure Stage Complete\n")
 
 if config["uninstall"]:
-  output("Cleanup Start")
+  output("=== Cleanup Start")
 
-  if not config["leave-config"]:
+  if config["leave-config"]:
+    output(f'Removing "{paths["user"]["repos"]}"...')
+    force_remove_dir(paths["user"]["repos"])
+  else:
     output(f'Removing "{paths["user"]["root"]}"...')
-    try:
-      shutil.rmtree(paths["user"]["root"])
-    except FileNotFoundError:
-      pass
+    force_remove_dir(paths["user"]["root"])
 
-  output("Cleanup Complete\n")
+  output("=== Cleanup Complete\n")
 
 if config["uninstall"]:
   output("Uninstall Complete")

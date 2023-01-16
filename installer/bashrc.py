@@ -47,6 +47,9 @@ def configure():
   python_script_path = cygpath.to_unix_path(paths["source"]["python"])
   additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", python_script_path)
   additional_bashrc_contents += "\n"
+  for dir_path in global_vars.get_additional_bin_dirs():
+    additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", dir_path)
+    additional_bashrc_contents += "\n"
 
   with open(additional_bashrc_path, "w") as f:
     f.write(additional_bashrc_contents)
