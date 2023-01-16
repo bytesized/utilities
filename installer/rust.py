@@ -2,6 +2,7 @@
 # Kirk Steuber, 2023-01-16
 import os
 import subprocess
+import sys
 
 from . import global_vars
 from .output import output
