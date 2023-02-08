@@ -179,10 +179,11 @@ elif os.path.isdir(args.input):
       print(f"MISSING FILE: \"{relpath}\"")
       success = False
 
-  if success:
-    print("\nOverall: MATCH")
-  else:
-    print("\nOverall: NO MATCH")
+  if verify_files is not None:
+    if success:
+      print("\nOverall: MATCH")
+    else:
+      print("\nOverall: NO MATCH")
 else:
   success = compute_and_output_file_digest(args.input, verify_string, output_comparison)
 
