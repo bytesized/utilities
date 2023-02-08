@@ -26,52 +26,167 @@ parser.add_argument("-u", "--uppercase", action = "store_true",
                     help = "Outputted hash will be in uppercase")
 parser.add_argument("-q", "--quiet", action = "store_true",
                     help = "No status bar will be printed")
-parser.add_argument("-v", "--verify", help = "Verify the given hash")
+parser.add_argument("-v", "--verify", metavar = "HASH", help = "Verify against the provided HASH.")
+parser.add_argument("-f", "--file", action = "store_true",
+                    help = "By default, the value passed to --verify will be interpreted as a "
+                           "string. If this option is specified, it will instead be interpreted "
+                           "as a path to read the verification value from. The expected format of "
+                           "the file matches the output of this function when -q is used.")
+parser.add_argument("-m", "--mismatch-only", action = "store_true",
+                    help = "Only produce output for files that do not match. No effect if -v is "
+                           "not specified. Implies -q.")
 parser.add_argument("input", help = "Data to be digested or location of data")
 args = parser.parse_args()
+if args.mismatch_only:
+  args.quiet = True
 
-hasher = getattr(hashlib, args.algorithm)()
-if args.string:
-  hasher.update(args.input.encode('utf-8'))
-else:
-  file_size = os.stat(args.input).st_size
-  done = 0
+hasher_constructor = getattr(hashlib, args.algorithm)
+
+def output_digest_result(digest, verify_string, output_comparison, output_path = None):
+  if verify_string is not None:
+    digest_matches_expected = verify_string.lower() == digest.lower()
+    if args.mismatch_only and digest_matches_expected:
+      return True
+
+  if args.uppercase:
+    digest = digest.upper()
+
+  if output_path:
+    print(output_path)
+
+  print(digest)
+
+  if verify_string is None:
+    return True
+
+  if output_comparison:
+    print(f"Comparing against:\n{verify_string}")
+
+  if digest_matches_expected:
+    print("MATCH")
+  else:
+    print("NO MATCH")
+  return digest_matches_expected
+
+def compute_and_output_file_digest(path, verify_string, output_comparison, output_path = None):
+  hasher = hasher_constructor()
+
+  file_size = os.stat(path).st_size
+
   if file_size > PROGRESS_BAR_CUTOFF and not args.quiet:
     show_progress = True
-    if WITH_PROGRESS_BAR:
-      bar = progressbar.ProgressBar(max_value = file_size)
-    else:
-      last_percentage = -1
   else:
     show_progress = False
 
-  with open(args.input, "rb") as f:
-    for chunk in iter(partial(f.read, CHUNK_SIZE), b""):
-      hasher.update(chunk)
-      done += len(chunk)
-      if show_progress:
-        if WITH_PROGRESS_BAR:
-          bar.update(done)
-        else:
-          percentage = done * 100 / file_size
-          if percentage != last_percentage:
-            sys.stdout.write("\r{0:.2f}% ".format(percentage))
-            sys.stdout.flush()
-            last_percentage = percentage
-    if show_progress:
-      print()
+  if output_path is not None and not args.mismatch_only:
+    print(output_path)
+    # Don't display it again
+    output_path = None
 
-digest = hasher.hexdigest()
-
-if args.uppercase:
-  digest = digest.upper()
-
-print(digest)
-
-if args.verify:
-  if args.verify.lower() == digest.lower():
-    print("MATCH")
-    sys.exit(0)
+  if show_progress and WITH_PROGRESS_BAR:
+    with open(path, "rb") as file, progressbar.ProgressBar(max_value=file_size) as bar:
+      digest_file_helper(hasher, file, file_size, show_progress, bar)
   else:
-    print("NO MATCH")
-    sys.exit(1)
+    with open(path, "rb") as file:
+      digest_file_helper(hasher, file, file_size, show_progress, None)
+
+  if show_progress:
+    print()
+
+  return output_digest_result(hasher.hexdigest(), verify_string, output_comparison, output_path)
+
+def digest_file_helper(hasher, file, file_size, show_progress, bar):
+  bytes_completed = 0
+  if bar is None and show_progress:
+    last_percentage_string = ""
+
+  for chunk in iter(partial(file.read, CHUNK_SIZE), b""):
+    hasher.update(chunk)
+    bytes_completed += len(chunk)
+    if show_progress:
+      if WITH_PROGRESS_BAR:
+        bar.update(bytes_completed)
+      else:
+        percentage = bytes_completed * 100 / file_size
+        percentage_string = "\r{0:.1f}% ".format(percentage)
+        if percentage_string != last_percentage_string:
+          sys.stdout.write(percentage_string)
+          sys.stdout.flush()
+          last_percentage_string = percentage_string
+
+output_comparison = False
+if args.verify:
+  if args.file:
+    with open(args.verify) as file:
+      verify_string = file.read().strip()
+    output_comparison = True
+  else:
+    verify_string = args.verify
+else:
+  verify_string = None
+
+if args.string:
+  hasher = hasher_constructor()
+  hasher.update(args.input.encode('utf-8'))
+  success = output_digest_result(hasher.hexdigest(), verify_string, output_comparison)
+elif os.path.isdir(args.input):
+  verify_strings = None
+  verify_files = None
+  if verify_string is not None:
+    verify_string_lines = verify_string.splitlines()
+    verify_strings = {}
+    while verify_string_lines:
+      path = ""
+      while not path and verify_string_lines:
+        path = verify_string_lines.pop(0).strip()
+      if not path:
+        break
+      if path in verify_strings:
+        print(f"Duplicate path in verification file: \"{path}\"")
+        sys.exit(1)
+      path = os.path.abspath(os.path.join(args.input, path))
+
+      digest = ""
+      while not digest and verify_string_lines:
+        digest = verify_string_lines.pop(0).strip()
+      if not digest:
+        print(f"Missing digest for path \"{path}\" in verification file")
+        sys.exit(1)
+
+      verify_strings[path] = digest
+
+    verify_files = set(verify_strings.keys())
+  success = True
+  digested_files = set()
+  for root, dirs, files in os.walk(args.input):
+    for file in files:
+      path = os.path.abspath(os.path.join(root, file))
+      relpath = os.path.relpath(path, start = args.input)
+      if verify_strings is None:
+        success = compute_and_output_file_digest(path, None, True, relpath) and success
+      else:
+        if path in verify_strings:
+          expected = verify_strings[path]
+          success = compute_and_output_file_digest(path, expected, True, relpath) and success
+        else:
+          print(f"UNEXPECTED FILE: \"{relpath}\"")
+          success = False
+      digested_files.add(path)
+  if verify_files is not None:
+    missing = verify_files.difference(digested_files)
+    for path in missing:
+      relpath = os.path.relpath(path, start = args.input)
+      print(f"MISSING FILE: \"{relpath}\"")
+      success = False
+
+  if success:
+    print("\nOverall: MATCH")
+  else:
+    print("\nOverall: NO MATCH")
+else:
+  success = compute_and_output_file_digest(args.input, verify_string, output_comparison)
+
+if success:
+  sys.exit(0)
+else:
+  sys.exit(1)
