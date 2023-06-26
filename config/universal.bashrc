@@ -43,11 +43,9 @@ elif [[ "$_B_OS" == "mac" ]]; then
 elif [[ "$_B_OS" == "linux" ]]; then
   export PATH="${PATH}:/sbin"
   export PATH="${PATH}:${HOME}/.local/bin/"
-  if [[ "$_B_MOZILLA" == "true" ]]; then
-    if [[ -f "${HOME}/.cargo/env" ]]
-    then
-      . "${HOME}/.cargo/env"
-    fi
+  if [[ -f "${HOME}/.cargo/env" ]]
+  then
+    . "${HOME}/.cargo/env"
   fi
 fi
 
