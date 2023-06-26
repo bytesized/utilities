@@ -92,7 +92,6 @@ fi
 
 unalias -a
 
-alias bc='bc -lq'
 alias ci='vim'  # Not sure what ci is, but I always type it instead of vi and get confused
 alias cp='cp -i'
 alias cwd='pwd'
@@ -185,9 +184,9 @@ if [[ "$_B_OS" == "linux" ]]; then
           # If we haven't already, get the core speed and model name. This will be done the first
           # pass through each time
           if [[ -z "$core_speed" ]]; then
-            core_speed=$(echo "${core_data_array[$index]}" | grep -E '^cpu MHz\s+: ' | sed -r 's/^cpu MHz[ \t]+: //')
+            core_speed=$(echo "${core_data_array[$index]}" | grep -E '^cpu MHz\s+: ' | sed -r 's/^cpu MHz[ \t]+: //' | sed 's/\..*$//')
             # Convert to Ghz
-            core_speed=$(echo "${core_speed} / 1000" | bc -l | awk '{printf "%.1f\n", $1}')
+            core_speed=$( echo "$(( ${core_speed} / 100 ))" | sed -e 's/.$/.&/')
             
             model_name=$(echo "${core_data_array[$index]}" | grep -E '^model name\s+: ' | sed -r 's/^model name\s+: //;s/[ \t]+/ /g')
           fi
