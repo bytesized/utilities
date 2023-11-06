@@ -188,7 +188,7 @@ if [[ "$_B_OS" == "linux" ]]; then
             # Convert to Ghz
             core_speed=$( echo "$(( ${core_speed} / 100 ))" | sed -e 's/.$/.&/')
             
-            model_name=$(echo "${core_data_array[$index]}" | grep -E '^model name\s+: ' | sed -r 's/^model name\s+: //;s/[ \t]+/ /g')
+            model_name=$(echo "${core_data_array[$index]}" | grep -E '^model name\s+: ' | sed -r 's/^model name[[:blank:]]+: //;s/[ \t]+/ /g')
           fi
           # Add the core id to the list
           local core_id=$(echo "${core_data_array[$index]}" | grep -E '^core id\s+: ' | sed -r 's/^core id[ \t]+: //')
@@ -563,11 +563,11 @@ function pre_prompt {
     info_bar_array[$info_array_size]="${hg_branch} "
     (( info_array_size = info_array_size + 1 ))
 
-    local active_bookmark="$(echo "$hg_summary" | grep '^bookmarks: ' | grep '\*' | sed 's|^[^*]*\*\(\S*\).*$|\1|')"
+    local active_bookmark="$(echo "$hg_summary" | grep '^bookmarks: ' | grep '\*' | sed 's|^[^*]*\*\([^[:blank:]]*\).*$|\1|')"
     local hg_parents="$(hg parents)"
-    local bookmarks="$(echo "$hg_parents" | grep '^bookmark:' | sed 's|^bookmark:\s*\(\S*\)\s*$|\1|')"
-    local fxtree="$(echo "$hg_parents" | grep '^fxtree:' | sed 's|^fxtree:\s*\(\S*\)\s*$|\1|')"
-    local changeset="$(echo "$hg_parents" | grep '^changeset:' | sed 's|^changeset:\s*\([0-9]*\):.*$|\1|')"
+    local bookmarks="$(echo "$hg_parents" | grep '^bookmark:' | sed 's|^bookmark:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$|\1|')"
+    local fxtree="$(echo "$hg_parents" | grep '^fxtree:' | sed 's|^fxtree:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$|\1|')"
+    local changeset="$(echo "$hg_parents" | grep '^changeset:' | sed 's|^changeset:[[:blank:]]*\([0-9]*\):.*$|\1|')"
 
     if [[ -n "$fxtree" ]]
     then
