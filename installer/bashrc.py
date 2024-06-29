@@ -48,6 +48,7 @@ def configure():
   additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", python_script_path)
   additional_bashrc_contents += "\n"
   for dir_path in global_vars.get_additional_bin_dirs():
+    dir_path = cygpath.to_unix_path(dir_path)
     additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", dir_path)
     additional_bashrc_contents += "\n"
 
