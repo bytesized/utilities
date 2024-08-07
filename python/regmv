@@ -1,68 +1,310 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2017-08-26
+# Robin Steuber, 2017-08-26
 import argparse
-import sys
+import ast
 from collections import namedtuple
-import re
+from enum import Enum
+import operator
 import os
+import re
 import shutil
+import sys
+from textwrap import dedent
 
-SUB_HELP_PAGE = "https://docs.python.org/{}.{}/library/re.html#re.sub".format(
-                 sys.version_info.major, sys.version_info.minor)
+FORMAT_HELP_PAGE = "https://docs.python.org/3/library/string.html#formatstrings"
 
 def print_error(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
-def positive_int(value):
-  int_value = int(value)
-  if int_value <= 0:
-    raise argparse.ArgumentTypeError("'{}' is not a valid positive integer"
-                                     .format(int_value))
-  return int_value
+class CaptureGroupSet:
+  def __init__(self, match_object):
+    self.capture_group_defaults = {}
+    self.global_default = None
 
-parser = argparse.ArgumentParser(description = "Move files based on regex find-"
-                                               "and-replace.")
+    self.numeric_groups = [match_object.group(0)] + list(match_object.groups(default = ""))
+    self.string_groups = match_object.groupdict()
+
+  def __setitem__(self, capture_group, value):
+    self.set(capture_group, value)
+
+  def __getitem__(self, capture_group):
+    return self.get(capture_group)
+
+  def __delitem__(self, capture_group):
+    self.set(capture_group, "")
+
+  class CaptureGroupSetIter:
+    def __init__(self, cgs):
+      self.numeric_iter = enumerate(cgs.numeric_groups)
+      self.string_iter = cgs.string_groups.items().__iter__()
+
+    def __next__(self):
+      if self.numeric_iter is not None:
+        try:
+          return self.numeric_iter.__next__()
+        except StopIteration:
+          self.numeric_iter = None
+
+      return self.string_iter.__next__()
+
+  def __iter__(self):
+    return CaptureGroupSet.CaptureGroupSetIter(self)
+
+  def set_global_default(self, default_value):
+    # Since defaults are applied in order, setting the global default overrides all other defaults
+    self.capture_group_defaults = {}
+    self.global_default = default_value
+
+  def set_default(self, capture_group, default_value):
+    self.capture_group_defaults[capture_group] = default_value
+
+  def get(self, capture_group, user_input_only = False):
+    try:
+      captured = self.numeric_groups[int(capture_group)]
+    except:
+      captured = self.string_groups.get(capture_group, "")
+
+    if captured or user_input_only:
+      return captured
+    if capture_group in self.capture_group_defaults:
+      return self.capture_group_defaults[capture_group]
+    if self.global_default is not None:
+      return self.global_default
+    return captured
+
+  def set(self, capture_group, value):
+    try:
+      self.numeric_groups[int(capture_group)] = value
+    except:
+      self.string_groups[capture_group] = value
+
+class Transform:
+  """
+    Sort of an abstract base class for the types of transforms this program can handle.
+    Subclasses should either implement the `transform(self, value)` method or override the
+    `transform_all(self, capture_group_set)` method.
+  """
+  def __init__(self, capture_group):
+    # Capture groups are always strings in `Transform`s because that's how the user provides them
+    # `CaptureGroupSet` handles the fact that some of these strings basically ought to be treated
+    # as integers
+    self.capture_group = capture_group
+
+  def has_wildcard_capture_group(self):
+    return self.capture_group == "*"
+
+  def transform_all(self, capture_group_set):
+    if self.has_wildcard_capture_group():
+      for capture_group, value in capture_group_set:
+        capture_group_set[capture_group] = self.transform(value)
+    else:
+      capture_group_set[self.capture_group] = self.transform(capture_group_set[self.capture_group])
+
+class ArithTransform(Transform):
+  def __init__(self, capture_group, args):
+    super().__init__(capture_group);
+
+    if len(args) == 0:
+      raise ValueError("arith is missing expr argument")
+    if len(args) > 1:
+      raise ValueError("arith has too many arguments")
+    self.expr = args[0]
+
+  # Shamelessly stolen from this genius over here: https://stackoverflow.com/a/9558001
+  # I suspect compatibility is >= 3.10  https://peps.python.org/pep-0636/
+  k_supported_operators = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.FloorDiv: operator.floordiv,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.BitXor: operator.xor,
+    ast.USub: operator.neg
+  }
+  def arithmentic_eval(self, expression_string):
+    return self.eval_(ast.parse(expression_string, mode = "eval").body)
+  def eval_(self, node):
+    match node:
+      case ast.Constant(value) if isinstance(value, int):
+        # Integer
+        return value
+      case ast.BinOp(left, operator, right):
+        return self.k_supported_operators[type(operator)](self.eval_(left), self.eval_(right))
+      case ast.UnaryOp(operator, operand):
+        return self.k_supported_operators[type(operator)](self.eval_(operand))
+      case _:
+        raise TypeError(node)
+
+  def transform(self, value):
+    # Leading zeros are not uncommon in a regex capture group, but may cause unexpected effects
+    # in mathematics. We only do this if there are no non-numeral characters though so that we can
+    # still support things like "0xA"
+    if value.isdecimal():
+      value = value.lstrip("0")
+    return str(self.arithmentic_eval(self.expr.replace("@", value)))
+
+class DefaultTransform(Transform):
+  def __init__(self, capture_group, args):
+    super().__init__(capture_group);
+
+    if len(args) == 0:
+      raise ValueError("default is missing its argument specifying the default value")
+    if len(args) > 1:
+      raise ValueError("default has too many arguments")
+
+    self.default_value = args[0]
+
+  def transform_all(self, capture_group_set):
+    if self.has_wildcard_capture_group():
+      capture_group_set.set_global_default(self.default_value)
+    else:
+      capture_group_set.set_default(self.capture_group, self.default_value)
+
+transform_map = {
+  "arith": ArithTransform,
+  "default": DefaultTransform,
+}
+transform_commands = list(transform_map.keys())
+
+parser = argparse.ArgumentParser(
+  formatter_class=argparse.RawDescriptionHelpFormatter,
+  description = dedent(f"""\
+    Move files based on regex find-and-replace.
+
+    By default, performs a dry run. Files will only actually be moved with -C / --commit
+
+    Due to the limitations of this program, it needs to walk all files in the directory and compare
+    them to the regex. By default, only `directory` itself is walked (no sub directories). To
+    recurse through sub directories, -r can be used.
+
+    Example:
+      {sys.argv[0]} -t 'arith|count|@ + 1' '(?<count>\\d+) panels' '{{count}} fence posts'
+  """),
+  epilog = dedent("""\
+    Transforms
+    ----------
+      Transforms allow capture groups to be transformed in ways that regex does not normally allow.
+      A transform can be added to the operation using `-t TRANSFORMATION_DESCRIPTION`. Multiple
+      transforms can be added by specifying the option multiple times. Transforms will be applied
+      in the order specified. Transformation descriptions are formatted as such:
+
+        <transform><sep><capture group>[<sep><transform arg>[<sep><transform arg>[...]]]
+
+      Separator:
+        This can be any single character. The only requirement is that it be a character that is
+        not used in <capture group> or <transform data>. The same character must be used for all
+        separators in a transformation description.
+
+      Transform:
+        This determines the method by which the capture group will be transformed. See the
+        Available Transform Types section, below, for more details.
+
+      Capture Group:
+        The capture group to transform, specified in the regex. For example, this regex:
+          ^filename\\.(?P<extension>[^.]*)$
+        could use the capture group, `extension` or, equivalently, `1`.
+
+        The special capture group * matches all capture groups.
+
+      Transform Argument:
+        Some transforms take input data via these arguments. Any natural number of arguments
+        (including 0) can be passed. Each transform type may allow/require different numbers of
+        arguments.
+
+      Available Transform Types:
+        The available transformation types are specified below as if they are functions, even
+        though the calling convention for transforms doesn't use that syntax.
+
+        arith(expr)
+          This transform evaluates the specified arithmetic expression (`expr`) using the regular
+          Python arithmetic operators: +, -, *, /, //, **, ^
+
+          Any @ symbol(s) in `expr` will be replaced with the value of the capture group.
+
+          Example: arith|*|@ + 1
+
+        default(value)
+          This transform provides a default value for the capture group to use in the case that the
+          capture group didn't capture anything. This includes both if the capture group is not
+          present in the result and if it is present with the value of an empty string.
+
+          `value` is the value to use if the capture group is empty.
+
+          Note that the last default value to be applied to a capture group takes effect.
+
+          Examples:
+            default|*|no value captured
+  """)
+)
 parser.add_argument("pattern",
-                    help = "Only files with filenames matching this pattern "
-                           "will be replaced")
+                    help = """
+                      Only files with filenames matching this pattern will be replaced
+                    """)
 parser.add_argument("replacement",
-                    help = "The replacement string for destination filenames. "
-                           "The syntax follows that of Python's re.sub. "
-                           "Use \g<capture-group> to include capture groups in "
-                           "replacement text. See the documentation at {} "
-                           "for more information".format(SUB_HELP_PAGE))
+                    help = f"""
+                      The replacement string for destination filenames. The syntax follows that of
+                      Python Format String Syntax. See the documentation at {FORMAT_HELP_PAGE} for
+                      more information.
+                    """)
 parser.add_argument("directory", nargs = "?",
-                    help = "The path to the directory containing the files to "
-                           "be renamed. If omitted, the current working "
-                           "directory will be used.")
+                    help = """
+                      The path to the directory containing the files to be renamed. If omitted, the
+                      current working directory will be used.
+                    """)
 parser.add_argument("-q", "--quiet", action = "store_true",
                     help = "Display no output on success")
-parser.add_argument("-d", "--dry-run", action = "store_true",
-                    help = "Display file rename actions that would take place "
-                           "without actually moving any files")
+parser.add_argument("-C", "--commit", action = "store_true",
+                    help = """
+                      This command only performs dry runs by default (no files are actually moved).
+                      Pass this option to commit the changes, actually moving the files.
+                    """)
 parser.add_argument("-f", "--force", action = "store_true",
-                    help = "Normally, checks are made prior to copying to "
-                           "ensure that the actions taken do not attempt to "
-                           "overwrite any other files or directories. If this "
-                           "option is specified, those checks are skipped")
+                    help = """
+                      Normally, checks are made prior to copying to ensure that the actions taken
+                      do not attempt to overwrite any other files or directories. If this option is
+                      specified, those checks are skipped
+                    """)
 parser.add_argument("-r", "--recursive", action = "store_true",
-                    help = "If specified, files to move will be found "
-                           "recursively. Patterns and replacement strings "
-                           "shall be applied to relative paths rather than "
-                           "just filenames")
+                    help = """
+                      If specified, files to move will be found recursively. Patterns and
+                      replacement strings shall be applied to relative paths rather than just
+                      filenames
+                    """)
 parser.add_argument("-i", "--case-insensitive", action = "store_true",
-                    help = "Makes the pattern match case insensitive")
+                    help = """
+                      Makes the pattern match case insensitive
+                    """)
 parser.add_argument("-c", "--create-dirs", action = "store_true",
-                    help = "Allows movement of files into non-existent "
-                           "directories by creating them as needed")
-parser.add_argument("-C", "--match-count", type = positive_int, default = 1,
-                    metavar = "MAX_MATCHES",
-                    help = "Maximum number of replacements to make per "
-                           "filename (default: %(default)s)")
+                    help = """
+                      Allows movement of files into non-existent directories by creating
+                      them as needed
+                    """)
+parser.add_argument("-t", "--transform", type = str, action = "append",
+                    metavar = "TRANSFORMATION_DESCRIPTION",
+                    help = """
+                      Adds an a capture group transformation. The functionality and format of this
+                      argument are explained further, below.
+                    """)
 args = parser.parse_args()
 
 if args.directory is not None:
   os.chdir(args.directory)
+
+transforms = []
+if args.transform:
+  for trans_input in args.transform:
+    possible_transforms = [t for t in transform_commands if trans_input.startswith(t)]
+    if len(possible_transforms) == 0:
+      raise ValueError(f"Unrecognized transform command in transform definition: '{trans_input}'")
+    assert len(possible_transforms) == 1
+    transform_command = possible_transforms[0]
+    transform_class = transform_map[transform_command]
+    separator = trans_input[len(transform_command)]
+    trans_args = trans_input.split(separator)
+    trans_args.pop(0)
+    capture_group = trans_args.pop(0)
+    transforms.append(transform_class(capture_group, trans_args))
 
 Move_Action = namedtuple("Move_Action", ["source", "dest"])
 actions = []
@@ -74,9 +316,19 @@ def file_exists(path, source):
   existing_files[path] = source
 
 def maybe_move(path):
-  dest, match_count = regex.subn(args.replacement, path, args.match_count)
-  if match_count > 0:
-    actions.append(Move_Action(source = path, dest = dest))
+  match_object = regex.search(path)
+  if not match_object:
+    return
+
+  capture_groups = CaptureGroupSet(match_object)
+
+  for transform in transforms:
+    transform.transform_all(capture_groups)
+
+  dest = args.replacement.format(*capture_groups.numeric_groups, **capture_groups.string_groups)
+
+  actions.append(Move_Action(source = path, dest = dest))
+
 
 if args.recursive:
   for root, dirs, files in os.walk("."):
@@ -110,14 +362,13 @@ if not args.force:
     file_moved_from[abs_source] = True
 
     if abs_dest in existing_files:
-      print_error("Overwrite error: \"{}\" will overwrite \"{}\" ({})"
-                  .format(source, dest, existing_files[abs_dest]))
+      print_error(f"Overwrite error: \"{source}\" will overwrite \"{dest}\" "
+                  f"({existing_files[abs_dest]})")
       error_count += 1
       del existing_files[abs_dest]
     elif abs_dest not in file_moved_from and os.path.exists(dest):
-      print_error("Overwrite error: \"{}\" will overwrite \"{}\" "
-                  "(pre-existing, external file)"
-                  .format(source, dest))
+      print_error(f"Overwrite error: \"{source}\" will overwrite \"{dest}\" "
+                  f"(pre-existing, external file)")
       error_count += 1
     file_exists(abs_dest, "renamed from \"{}\"".format(source))
   if error_count > 0:
@@ -129,8 +380,8 @@ existing_dirs = {"": True}
 
 for source, dest in actions:
   if not args.quiet:
-    print("\"{}\" -> \"{}\"".format(source, dest))
-  if not args.dry_run:
+    print(f"\"{source}\" -> \"{dest}\"")
+  if args.commit:
     if args.create_dirs:
       dir_name = os.path.dirname(dest)
       if dir_name not in existing_dirs and not os.path.exists(dir_name):
