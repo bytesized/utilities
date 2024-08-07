@@ -192,8 +192,8 @@ parser = argparse.ArgumentParser(
 
       Separator:
         This can be any single character. The only requirement is that it be a character that is
-        not used in <capture group> or <transform data>. The same character must be used for all
-        separators in a transformation description.
+        not used in <capture group> or any of the <transform arg>s. The same character must be used
+        for all separators in a transformation description.
 
       Transform:
         This determines the method by which the capture group will be transformed. See the
