@@ -200,13 +200,18 @@ class IndexTransform(Transform):
     for capture_group in capture_groups:
       if capture_group not in IndexTransform.g_value_maps:
         values = [capture_group_set[capture_group] for capture_group_set in capture_group_sets]
-        parsed_values = []
-        for value in values:
-          try:
-            parsed_values.append(int(value))
-          except:
-            parsed_values = values
-            break
+        if self.type == IndexTransform.k_type_string:
+          parsed_values = values
+        else:
+          parsed_values = []
+          for value in values:
+            try:
+              parsed_values.append(int(value))
+            except:
+              if self.type == IndexTransform.k_type_int:
+                raise
+              parsed_values = values
+              break
         parsed_values.sort()
 
         value_map = {}
