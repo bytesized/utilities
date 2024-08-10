@@ -104,6 +104,7 @@ alias grep='grep --color=auto -E'
 alias ls='ls -h --color=always'
 alias lsb='$(which ls) --color=auto -l'
 alias mv='mv -i'
+alias pcp='rsync -rptgoh --progress'
 alias vi='vim'
 
 if [[ "$_B_OS" == "windows" ]]; then
