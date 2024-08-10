@@ -13,15 +13,23 @@ from textwrap import dedent
 FORMAT_HELP_PAGE = "https://docs.python.org/3/library/string.html#formatstrings"
 
 def print_error(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+    print(*args, file = sys.stderr, **kwargs)
 
 class CaptureGroupSet:
-  def __init__(self, match_object):
-    self.capture_group_defaults = {}
-    self.global_default = None
+  # Magic capture group name that always resolves to the global default
+  k_global_default_group = -1
+
+  g_capture_groups = set()
+
+  def __init__(self, match_object, path):
+    self.path = path
+    self.global_default = ""
 
     self.numeric_groups = [match_object.group(0)] + list(match_object.groups(default = ""))
     self.string_groups = match_object.groupdict()
+
+    CaptureGroupSet.g_capture_groups.update(range(len(self.numeric_groups)))
+    CaptureGroupSet.g_capture_groups.update(self.string_groups.keys())
 
   def __setitem__(self, capture_group, value):
     self.set(capture_group, value)
@@ -31,6 +39,9 @@ class CaptureGroupSet:
 
   def __delitem__(self, capture_group):
     self.set(capture_group, "")
+
+  def __contains__(self, capture_group):
+    return bool(self.get(capture_group))
 
   class CaptureGroupSetIter:
     def __init__(self, cgs):
@@ -49,29 +60,21 @@ class CaptureGroupSet:
   def __iter__(self):
     return CaptureGroupSet.CaptureGroupSetIter(self)
 
-  def set_global_default(self, default_value):
-    # Since defaults are applied in order, setting the global default overrides all other defaults
-    self.capture_group_defaults = {}
-    self.global_default = default_value
-
-  def set_default(self, capture_group, default_value):
-    self.capture_group_defaults[capture_group] = default_value
-
-  def get(self, capture_group, user_input_only = False):
+  def get(self, capture_group):
+    if capture_group == CaptureGroupSet.k_global_default_group:
+      return self.global_default
     try:
       captured = self.numeric_groups[int(capture_group)]
     except:
       captured = self.string_groups.get(capture_group, "")
 
-    if captured or user_input_only:
+    if captured:
       return captured
-    if capture_group in self.capture_group_defaults:
-      return self.capture_group_defaults[capture_group]
-    if self.global_default is not None:
-      return self.global_default
-    return captured
+    return self.global_default
 
   def set(self, capture_group, value):
+    if capture_group == CaptureGroupSet.k_global_default_group:
+      self.global_default = value
     try:
       self.numeric_groups[int(capture_group)] = value
     except:
@@ -96,6 +99,7 @@ class Transform:
     if self.has_wildcard_capture_group():
       for capture_group, value in capture_group_set:
         capture_group_set[capture_group] = self.transform(value)
+      capture_group_set.global_default = self.transform(capture_group_set.global_default)
     else:
       capture_group_set[self.capture_group] = self.transform(capture_group_set[self.capture_group])
 
@@ -145,7 +149,7 @@ class ArithTransform(Transform):
 
 class DefaultTransform(Transform):
   def __init__(self, capture_group, args):
-    super().__init__(capture_group);
+    super().__init__(capture_group)
 
     if len(args) == 0:
       raise ValueError("default is missing its argument specifying the default value")
@@ -155,14 +159,70 @@ class DefaultTransform(Transform):
     self.default_value = args[0]
 
   def transform_all(self, capture_group_set):
-    if self.has_wildcard_capture_group():
-      capture_group_set.set_global_default(self.default_value)
+    if not self.has_wildcard_capture_group():
+      if self.capture_group not in capture_group_set:
+        capture_group_set[self.capture_group] = self.default_value
+    capture_group_set.global_default = self.default_value
+
+class IndexTransform(Transform):
+  k_type_unknown = 0
+  k_type_string = 1
+  k_type_int = 2
+
+  g_value_maps = {}
+
+  def __init__(self, capture_group, args):
+    super().__init__(capture_group)
+
+    if args:
+      self.start = int(args.pop(0))
     else:
-      capture_group_set.set_default(self.capture_group, self.default_value)
+      self.start = 1
+    if args:
+      type_map = {
+        "int": IndexTransform.k_type_int,
+        "str": IndexTransform.k_type_string,
+      }
+      self.type = type_map[args.pop(0)]
+    else:
+      self.type = IndexTransform.k_type_unknown
+
+  def transform_all(self, capture_group_set):
+    # Pardon me. Just reaching way over there to grab something that isn't mine.
+    global capture_group_sets
+
+    if self.has_wildcard_capture_group():
+      capture_groups = list(CaptureGroupSet.g_capture_groups) + \
+                       [CaptureGroupSet.k_global_default_group]
+    else:
+      capture_groups = [self.capture_group]
+
+    for capture_group in capture_groups:
+      if capture_group not in IndexTransform.g_value_maps:
+        values = [capture_group_set[capture_group] for capture_group_set in capture_group_sets]
+        parsed_values = []
+        for value in values:
+          try:
+            parsed_values.append(int(value))
+          except:
+            parsed_values = values
+            break
+        parsed_values.sort()
+
+        value_map = {}
+        for index, value in enumerate(parsed_values):
+          value_map[str(value)] = str(self.start + index)
+
+        IndexTransform.g_value_maps[capture_group] = value_map
+
+      capture_group_set[capture_group] = \
+        IndexTransform.g_value_maps[capture_group][capture_group_set[capture_group]]
+
 
 transform_map = {
   "arith": ArithTransform,
   "default": DefaultTransform,
+  "index": IndexTransform,
 }
 transform_commands = list(transform_map.keys())
 
@@ -228,12 +288,27 @@ parser = argparse.ArgumentParser(
           capture group didn't capture anything. This includes both if the capture group is not
           present in the result and if it is present with the value of an empty string.
 
-          `value` is the value to use if the capture group is empty.
+          value
+            The value to use if the capture group is empty.
 
           Note that the last default value to be applied to a capture group takes effect.
 
           Examples:
             default|*|no value captured
+
+        index([start[, type]])
+          This transform takes a sort key via a capture group and transforms it into an integer
+          index describing its position in the sort order.
+
+          start
+            The first index to output. Defaults to 1.
+
+          type
+            One of `["str", "int"]`, depending on whether the capture group should be sorted as
+            integers or strings. It determines, for example, if `10` should be sorted before or
+            after `2`.
+            If no value is provided, all the values are analyzed. If they can all be coerced to
+            integers, they are all treated as such. Otherwise they are all treated as strings.
   """)
 )
 parser.add_argument("pattern",
@@ -287,6 +362,11 @@ parser.add_argument("-t", "--transform", type = str, action = "append",
                     """)
 args = parser.parse_args()
 
+if args.quiet:
+  quiet_print = lambda *args, **kwargs: None
+else:
+  quiet_print = print
+
 if args.directory is not None:
   os.chdir(args.directory)
 
@@ -305,29 +385,19 @@ if args.transform:
     capture_group = trans_args.pop(0)
     transforms.append(transform_class(capture_group, trans_args))
 
-Move_Action = namedtuple("Move_Action", ["source", "dest"])
-actions = []
 existing_files = {}
-regex = re.compile(args.pattern, re.IGNORECASE if args.case_insensitive else 0)
-
 def file_exists(path, source):
   assert path not in existing_files
   existing_files[path] = source
 
-def maybe_move(path):
+regex = re.compile(args.pattern, re.IGNORECASE if args.case_insensitive else 0)
+capture_group_sets = []
+def maybe_add_capture_group_set(path):
   match_object = regex.search(path)
   if not match_object:
     return
 
-  capture_groups = CaptureGroupSet(match_object)
-
-  for transform in transforms:
-    transform.transform_all(capture_groups)
-
-  dest = args.replacement.format(*capture_groups.numeric_groups, **capture_groups.string_groups)
-
-  actions.append(Move_Action(source = path, dest = dest))
-
+  capture_group_sets.append(CaptureGroupSet(match_object, path))
 
 if args.recursive:
   for root, dirs, files in os.walk("."):
@@ -344,12 +414,27 @@ if args.recursive:
     for file in files:
       path = os.path.join(root, file)
       file_exists(os.path.abspath(path), "pre-existing file")
-      maybe_move(path)
+      maybe_add_capture_group_set(path)
 else:
   for filename in os.listdir("."):
     file_exists(os.path.abspath(filename), "pre-existing file")
     if os.path.isfile(filename):
-      maybe_move(filename)
+      maybe_add_capture_group_set(filename)
+
+Move_Action = namedtuple("Move_Action", ["source", "dest"])
+actions = []
+
+for capture_groups in capture_group_sets:
+  for transform in transforms:
+    transform.transform_all(capture_groups)
+
+  formatted_replacement = \
+    args.replacement.format(*capture_groups.numeric_groups, **capture_groups.string_groups)
+  dest = capture_groups.path.replace(capture_groups.numeric_groups[0], formatted_replacement, 1)
+
+  actions.append(Move_Action(source = capture_groups.path, dest = dest))
+
+actions.sort()
 
 if not args.force:
   error_count = 0
@@ -377,9 +462,9 @@ if not args.force:
 # Directory existence cache
 existing_dirs = {"": True}
 
+move_count = 0
 for source, dest in actions:
-  if not args.quiet:
-    print(f"\"{source}\" -> \"{dest}\"")
+  quiet_print(f"\"{source}\" -> \"{dest}\"")
   if args.commit:
     if args.create_dirs:
       dir_name = os.path.dirname(dest)
@@ -387,3 +472,6 @@ for source, dest in actions:
         os.makedirs(dir_name)
         existing_dirs[dir_name] = True
     shutil.move(source, dest)
+    move_count += 1
+
+quiet_print(f"\n  {move_count} files moved.")
