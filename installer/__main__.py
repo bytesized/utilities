@@ -266,6 +266,7 @@ if config["uninstall"]:
   if config["leave-config"]:
     output(f'Removing "{paths["user"]["repos"]}"...')
     force_remove_dir(paths["user"]["repos"])
+    output(f'Removing "{paths["user"]["lib"]["root"]}"...')
     force_remove_dir(paths["user"]["lib"]["root"])
   else:
     output(f'Removing "{paths["user"]["root"]}"...')

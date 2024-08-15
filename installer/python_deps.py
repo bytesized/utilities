@@ -4,13 +4,10 @@ import json
 import subprocess
 import sys
 
-from . import cygpath, global_vars
+from . import global_vars
 
 from .output import output
 
-# The fact that these packages may have their own dependencies makes this whole thing sort of
-# annoying, but we do our best to keep track of everything that got installed when we ran pip so
-# that we can uninstall all of them when requested.
 dependencies = [
   "progressbar2",
   "win11toast",
