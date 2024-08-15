@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2017-08-26
 import argparse
 import json
 import urllib.request

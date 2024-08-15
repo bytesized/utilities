@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2022-07-25
 
 # This is a real dumb script, but `realpath` doesn't exist on macOS for some dumb reason.
 

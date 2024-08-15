@@ -23,6 +23,7 @@ The Python utilities lack standard Python file extensions. But because they each
 * **digest**: Computes the digest of a file or string using the choice of any algorithm Python has available to it. Tested on Windows 10, OSX and Ubuntu.
 * **hexdump**: Prints the hexadecimal representation of file contents alongside the text contents. Automatically tries to fit output to the terminal width. Tested in Windows 10.
 * **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
+* **notifyuser**: Notifies the user. Useful for getting the user's attention when a long-running process completes and the user may have stopped paying attention to the window.
 * **regmv**: Moves files in a directory by performing regex substitution on their filenames.
 
 ## Rust

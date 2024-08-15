@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import subprocess
+import sys
+
+# Shamelessly stolen from:
+# https://searchfox.org/mozilla-central/rev/4496b3ed9bb535832e4826f09fbcb645b559a32d/python/mozbuild/mozbuild/base.py#572
+
+def notifyuser(title, message):
+  """
+    Attempts to notify the user. On Windows, we can only flash the window. On other platforms, we
+    show an actual notification window.
+  """
+  try:
+    if sys.platform.startswith("darwin"):
+      import butil
+
+      notifier = butil.which("terminal-notifier")
+      if not notifier:
+        raise Exception(
+          "Install terminal-notifier to get "
+          "a notification when the build finishes."
+        )
+      args = [
+        notifier,
+        "-title",
+        title,
+        "-group",
+        "bytesized",
+        "-message",
+        message,
+      ]
+      subprocess.call(args, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+    elif sys.platform.startswith("win"):
+      import win11toast
+
+      win11toast.notify(title, message)
+    else:
+      import butil
+
+      notifier = butil.which("notify-send")
+      if not notifier:
+        raise Exception(
+          "Install notify-send (usually part of "
+          "the libnotify package) to get a notification when "
+          "the build finishes."
+        )
+      args = [
+        notifier,
+        "--app-name=Mozilla Build System",
+        "Mozilla Build System",
+        message,
+      ]
+      subprocess.call(args, stdout = subprocess.DEVNULL, stderr = subprocess.DEVNULL)
+  except Exception as e:
+    print(f"Failed to notify user: {e}")
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description = """
+                                      Notifies the user. Useful for getting the user's attention
+                                      when a long-running process completes and the user may have
+                                      stopped paying attention to the window.
+                                   """)
+  parser.add_argument("title",
+                      help = """
+                        The title of the notification.
+                      """)
+  parser.add_argument("message",
+                      help = """
+                        The message text for the notification.
+                      """)
+  args = parser.parse_args()
+
+  notifyuser(args.title, args.message)

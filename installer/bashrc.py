@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2022-11-26
 import os
 import tempfile
 
@@ -20,7 +19,9 @@ then
 fi
 """.strip() + "\n"
 
-PATH_ADD_CODE = 'export PATH="${PATH}:__PATH_ADDITION__"'
+PATH_REPLACEMENT_SIGIL = "__PATH_ADDITION__"
+PATH_ADD_CODE = f'export PATH="${{PATH}}:{PATH_REPLACEMENT_SIGIL}"'
+PYTHON_LIB_PATH_ADD_CODE = f'export PYTHONPATH="${{PYTHONPATH}}:{PATH_REPLACEMENT_SIGIL}"'
 
 class BadFileContents(Exception):
   """
@@ -44,13 +45,22 @@ def configure():
   additional_bashrc_path = os.path.join(paths["user"]["config"], "additional.bashrc")
   additional_bashrc_contents = BASH_SHEBANG
   additional_bashrc_contents += "\n"
-  python_script_path = cygpath.to_unix_path(paths["source"]["python"])
-  additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", python_script_path)
+  python_script_path = cygpath.to_unix_path(paths["source"]["bin"]["python"])
+  additional_bashrc_contents += PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_script_path)
   additional_bashrc_contents += "\n"
   for dir_path in global_vars.get_additional_bin_dirs():
     dir_path = cygpath.to_unix_path(dir_path)
-    additional_bashrc_contents += PATH_ADD_CODE.replace("__PATH_ADDITION__", dir_path)
+    additional_bashrc_contents += PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, dir_path)
     additional_bashrc_contents += "\n"
+
+  python_source_lib_path = cygpath.to_unix_path(paths["source"]["lib"]["python"])
+  additional_bashrc_contents += \
+    PYTHON_LIB_PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_source_lib_path)
+  additional_bashrc_contents += "\n"
+  python_user_lib_path = cygpath.to_unix_path(paths["user"]["lib"]["python"])
+  additional_bashrc_contents += \
+    PYTHON_LIB_PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_user_lib_path)
+  additional_bashrc_contents += "\n"
 
   with open(additional_bashrc_path, "w") as f:
     f.write(additional_bashrc_contents)

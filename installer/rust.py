@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2023-01-16
 import os
 import subprocess
 import sys

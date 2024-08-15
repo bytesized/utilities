@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Robin Steuber, 2017-08-26
 import argparse
 import ast
 from collections import namedtuple

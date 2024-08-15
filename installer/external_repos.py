@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2023-01-13
 import json
 import os
 import subprocess

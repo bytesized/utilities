@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2022-02-17
 import argparse
 from collections import namedtuple
 from PIL import Image, ImageDraw, ImageFont

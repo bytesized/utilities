@@ -1,5 +1,4 @@
 #!/bin/bash
-# Kirk Steuber, 2022-11-26
 
 # This is a thin wrapper around the installer python package. It exists to make sure that
 # python exists and to make it slightly cleaner to invoke the installer properly.

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Kirk Steuber, 2022-11-25
 import argparse
 from collections import namedtuple
 import json
@@ -8,7 +7,7 @@ import shutil
 import stat
 import sys
 
-from . import bashrc, external_repos, global_vars, mozilla, rust
+from . import bashrc, external_repos, global_vars, mozilla, python_deps, rust
 from .output import output
 
 def force_remove_dir(dir_path):
@@ -40,11 +39,17 @@ paths["user"]["root"] = os.path.join(paths["user"]["home"], ".bytesized_utilites
 paths["user"]["config"] = os.path.join(paths["user"]["root"], "config")
 paths["user"]["data"] = os.path.join(paths["user"]["root"], "data")
 paths["user"]["repos"] = os.path.join(paths["user"]["root"], "repos")
+paths["user"]["lib"] = {}
+paths["user"]["lib"]["root"] = os.path.join(paths["user"]["root"], "lib")
+paths["user"]["lib"]["python"] = os.path.join(paths["user"]["lib"]["root"], "python")
 
 paths["source"] = {}
 paths["source"]["root"] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 paths["source"]["config"] = os.path.join(paths["source"]["root"], "config")
-paths["source"]["python"] = os.path.join(paths["source"]["root"], "python")
+paths["source"]["bin"] = {}
+paths["source"]["bin"]["python"] = os.path.join(paths["source"]["root"], "python", "bin")
+paths["source"]["lib"] = {}
+paths["source"]["lib"]["python"] = os.path.join(paths["source"]["root"], "python", "lib")
 
 paths["system"] = {}
 if os.name == "nt":
@@ -120,6 +125,17 @@ config_options = {
            "(default = %DEFAULT_VALUE%)",
     var_name = "config",
   ),
+  "python": ConfigValue(
+    default = True,
+    arg_parser = bool_arg_parser,
+    validator = bool_validator,
+    options = ["--python"],
+    metavar = "BOOL",
+    help = "Whether or not to download and install the Python packages that some of these "
+           "utilities depend on "
+           "(default = %DEFAULT_VALUE%)",
+    var_name = "python",
+  ),
 }
 
 # Read the JSON install config which will be used as the default values to hand to `argparse`.
@@ -132,9 +148,9 @@ try:
 except FileNotFoundError:
   pass
 except Exception as e:
-    print(
+  print(
     f"Warning! Unable to read configuration data for an unexpected reason, so default values will"
-      f"be used.\n{e}\n",
+    f"be used.\n{e}\n",
     file = sys.stderr
   )
 
@@ -221,6 +237,7 @@ if config["build"] and not config["uninstall"]:
 
   output("=== Build Stage Complete\n")
 
+# This both configures on install and "un-configures" on uninstall.
 if config["configure"]:
   output("=== Configure Stage Start")
 
@@ -232,12 +249,24 @@ if config["configure"]:
 
   output("=== Configure Stage Complete\n")
 
+if config["python"] and not config["uninstall"]:
+  output("=== Python Stage Start")
+
+  # The uninstallation for this will be handled in the cleanup stage below since we install into
+  # `paths["user"]["lib"]["python"]`
+  output("Installing Python dependencies...")
+  python_deps.install();
+
+  output("=== Python Stage Complete\n")
+
+
 if config["uninstall"]:
   output("=== Cleanup Start")
 
   if config["leave-config"]:
     output(f'Removing "{paths["user"]["repos"]}"...')
     force_remove_dir(paths["user"]["repos"])
+    force_remove_dir(paths["user"]["lib"]["root"])
   else:
     output(f'Removing "{paths["user"]["root"]}"...')
     force_remove_dir(paths["user"]["root"])
