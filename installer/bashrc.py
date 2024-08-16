@@ -19,15 +19,56 @@ then
 fi
 """.strip() + "\n"
 
+BASH_REPO_PATH_VAR_NAME = "_B_UTIL_REPO_PATH"
 PATH_REPLACEMENT_SIGIL = "__PATH_ADDITION__"
 PATH_ADD_CODE = f'export PATH="${{PATH}}:{PATH_REPLACEMENT_SIGIL}"'
-PYTHON_LIB_PATH_ADD_CODE = f'export PYTHONPATH="${{PYTHONPATH}}:{PATH_REPLACEMENT_SIGIL}"'
+PYTHON_LIB_PATH_ADD_CODE_SUBSEQUENT = \
+  f'export PYTHONPATH="${{PYTHONPATH}}:{PATH_REPLACEMENT_SIGIL}"'
+# We are probably safe just assuming that the PATH variable is already set, but PYTHONPATH often
+# is not.
+PYTHON_LIB_PATH_ADD_CODE_FIRST = f"""
+if [[ -z "$PYTHONPATH" ]]
+then
+  export PYTHONPATH="{PATH_REPLACEMENT_SIGIL}"
+else
+  {PYTHON_LIB_PATH_ADD_CODE_SUBSEQUENT}
+fi
+""".strip()
 
 class BadFileContents(Exception):
   """
     Raised if we try to parse a file and the contents are inconsistent (ex: mismatched sentinels).
     """
   pass
+
+def get_bash_path_string(path):
+  path = cygpath.to_unix_path(path)
+
+  # TODO: Actual escaping
+  assert "\"" not in path
+  assert "$" not in path
+
+  return path
+
+def get_bash_var_based_path_string(path, var_dict):
+  path = cygpath.to_unix_path(path)
+
+  # TODO: Actual escaping
+  assert "\"" not in path
+  assert "$" not in path
+
+  var_name = None
+  var_value = None
+  for current_var_name, current_var_value in var_dict.items():
+    if path.startswith(current_var_value):
+      var_name = current_var_name
+      var_value = current_var_value
+      break
+  else:
+    return path
+
+  path = "${" + var_name + "}" + path[len(var_value):]
+  return path
 
 def configure():
   config = global_vars.get_config()
@@ -45,21 +86,32 @@ def configure():
   additional_bashrc_path = os.path.join(paths["user"]["config"], "additional.bashrc")
   additional_bashrc_contents = BASH_SHEBANG
   additional_bashrc_contents += "\n"
-  python_script_path = cygpath.to_unix_path(paths["source"]["bin"]["python"])
+
+  repo_path = get_bash_path_string(paths["source"]["root"])
+  additional_bashrc_contents += f"export {BASH_REPO_PATH_VAR_NAME}=\"{repo_path}\"\n"
+
+  var_dict = {
+    BASH_REPO_PATH_VAR_NAME: repo_path,
+    # This is defined in `universal.bashrc`
+    "_B_UTIL_DIR": cygpath.to_unix_path(paths["user"]["root"]),
+  }
+
+  python_script_path = get_bash_var_based_path_string(paths["source"]["bin"]["python"], var_dict)
   additional_bashrc_contents += PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_script_path)
   additional_bashrc_contents += "\n"
   for dir_path in global_vars.get_additional_bin_dirs():
-    dir_path = cygpath.to_unix_path(dir_path)
+    dir_path = get_bash_var_based_path_string(dir_path, var_dict)
     additional_bashrc_contents += PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, dir_path)
     additional_bashrc_contents += "\n"
 
-  python_source_lib_path = cygpath.to_unix_path(paths["source"]["lib"]["python"])
+  python_source_lib_path = \
+    get_bash_var_based_path_string(paths["source"]["lib"]["python"], var_dict)
   additional_bashrc_contents += \
-    PYTHON_LIB_PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_source_lib_path)
+    PYTHON_LIB_PATH_ADD_CODE_FIRST.replace(PATH_REPLACEMENT_SIGIL, python_source_lib_path)
   additional_bashrc_contents += "\n"
-  python_user_lib_path = cygpath.to_unix_path(paths["user"]["lib"]["python"])
+  python_user_lib_path = get_bash_var_based_path_string(paths["user"]["lib"]["python"], var_dict)
   additional_bashrc_contents += \
-    PYTHON_LIB_PATH_ADD_CODE.replace(PATH_REPLACEMENT_SIGIL, python_user_lib_path)
+    PYTHON_LIB_PATH_ADD_CODE_SUBSEQUENT.replace(PATH_REPLACEMENT_SIGIL, python_user_lib_path)
   additional_bashrc_contents += "\n"
 
   with open(additional_bashrc_path, "w") as f:
