@@ -25,6 +25,8 @@ The Python utilities lack standard Python file extensions. But because they each
 * **markdown**: Uses the GitHub API to render a Markdown file as HTML. Takes an input file and an output file. Tested on OSX.
 * **notifyuser**: Notifies the user. Useful for getting the user's attention when a long-running process completes and the user may have stopped paying attention to the window.
 * **regmv**: Moves files in a directory by performing regex substitution on their filenames.
+* **uuid**: Generates a unique identifier.
+* **wifi_qr**: Generates a QR code that allows devices to connect to a wifi network just by scanning it.
 
 ## Rust
 
@@ -39,4 +41,3 @@ The Python utilities lack standard Python file extensions. But because they each
 * Add config files for vim, mercurial, sublime text
 * Add my Greasemonkey scripts
 * Write an update checking script
-* Write a calculator utility
