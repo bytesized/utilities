@@ -6,7 +6,7 @@
 # with other things that might be similarly named, so we will prefix with `_B_` and hope that that
 # is enough.
 
-_B_BASHRC_LOADED="true"
+export _B_BASHRC_LOADED="true"
 
 _B_OS="unknown"
 if [[ "$OSTYPE" == "msys" ]]; then
