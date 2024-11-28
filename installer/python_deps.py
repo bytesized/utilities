@@ -10,6 +10,9 @@ from .output import output
 
 dependencies = [
   "progressbar2",
+]
+
+windows_dependencies = [
   "win11toast",
 ]
 
@@ -31,7 +34,12 @@ def run_pip(args, capture_stderr = True):
 def install():
   paths = global_vars.get_paths()
 
-  output(f"Installing {', '.join(sorted(dependencies))}")
-  for dependency in dependencies:
+  all_deps = dependencies.copy()
+  if os.name == "nt":
+    all_deps.extend(windows_dependencies)
+  all_deps.sort()
+
+  output(f"Installing {', '.join(all_deps)}")
+  for dependency in all_deps:
     run_pip(["install", "--upgrade", "--target", paths["user"]["lib"]["python"], dependency])
 
