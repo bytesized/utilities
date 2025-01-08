@@ -23,13 +23,24 @@ class PipFailed(Exception):
   pass
 
 def run_pip(args, capture_stderr = True):
-  pip_args = ["python3", "-m", "pip"] + args
+  paths = global_vars.get_paths()
+
+  if paths["system"]["yes"] is None:
+    raise EnvironmentError("Error: Cannot find 'yes' in PATH.")
+
+  yes_process = subprocess.Popen(
+    [paths["system"]["yes"]],
+    stdout = subprocess.PIPE, stderr = subprocess.DEVNULL)
+
+  pip_args = [paths["system"]["python3"], "-m", "pip"] + args
   stderr = subprocess.STDOUT if capture_stderr else None
-  result = subprocess.run(pip_args, stdout = subprocess.PIPE, stderr = stderr)
+  result = subprocess.run(
+    pip_args, stdin = yes_process.stdout, stdout = subprocess.PIPE, stderr = stderr)
+  yes_process.stdout.close()
+  yes_process.wait()
   if result.returncode != 0:
     print(result.stdout, file = sys.stderr)
     raise PipFailed()
-  return result.stdout.decode("utf-8")
 
 def install():
   paths = global_vars.get_paths()

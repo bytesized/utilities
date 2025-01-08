@@ -54,7 +54,9 @@ fi
 export PATH=$(echo "$PATH" | sed 's|:\.:|:|g;s|:\.$||;s|^\.:||')
 
 export LESS="-FMRSXQ"
-export GIT_SSH="$(which ssh)"
+if [[ -n "$(which ssh 2>/dev/null)" ]]; then
+  export GIT_SSH="$(which ssh 2>/dev/null)"
+fi
 export EDITOR="vim"
 export PAGER="less -R"
 if [[ "$_B_OS" == "linux" ]]; then

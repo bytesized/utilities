@@ -6,7 +6,24 @@
 python_bin="$(which python3 2>/dev/null)"
 
 if [[ -z "$python_bin" ]]; then
-  echo "Cannot find python3! Install it from https://www.python.org/downloads/" >&2
+  python_bin="$(which python 2>/dev/null)"
+fi
+
+if [[ -z "$python_bin" ]]; then
+  echo "Cannot find python3($python_bin)! Install it from https://www.python.org/downloads/" >&2
+  if [[ "$OSTYPE" == "msys" ]]; then
+    echo
+    echo "Also recreate the shortcut to the terminal to point to:" >&2
+    echo "C:\msys64\msys2_shell.cmd -full-path" >&2
+  fi
+  exit
+fi
+
+python_version="$("$python_bin" --version)"
+if [[ "$python_version" == "Python 3."* ]]; then
+  echo "Found python3 at \"$python_bin\""
+else
+  echo "Unable to find Python 3. Could only find $python_version"
   exit
 fi
 

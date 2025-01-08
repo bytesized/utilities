@@ -7,7 +7,7 @@ import shutil
 import stat
 import sys
 
-from . import bashrc, external_repos, global_vars, mozilla, python_deps, rust
+from . import bashrc, external_repos, global_vars, mozilla, pacman, python_deps, rust
 from .output import output
 
 def force_remove_dir(dir_path):
@@ -34,7 +34,7 @@ def create_dirs_recursive(p):
 
 paths = {}
 paths["user"] = {}
-paths["user"]["home"] = os.path.expanduser("~")
+paths["user"]["home"] = os.environ["HOME"]
 paths["user"]["root"] = os.path.join(paths["user"]["home"], ".bytesized_utilites")
 paths["user"]["config"] = os.path.join(paths["user"]["root"], "config")
 paths["user"]["data"] = os.path.join(paths["user"]["root"], "data")
@@ -55,7 +55,13 @@ paths["system"] = {}
 if os.name == "nt":
   paths["system"]["cygpath"] = shutil.which("cygpath")
 paths["system"]["cargo"] = shutil.which("cargo")
+paths["system"]["curl"] = shutil.which("curl")
 paths["system"]["git"] = shutil.which("git")
+paths["system"]["python3"] = shutil.which("python3")
+if not paths["system"]["python3"]:
+  paths["system"]["python3"] = shutil.which("python")
+paths["system"]["sh"] = shutil.which("sh")
+paths["system"]["yes"] = shutil.which("yes")
 
 install_config_path = os.path.join(paths["user"]["config"], "install.json")
 
@@ -136,6 +142,16 @@ config_options = {
            "(default = %DEFAULT_VALUE%)",
     var_name = "python",
   ),
+  "pacman": ConfigValue(
+    default = True,
+    arg_parser = bool_arg_parser,
+    validator = bool_validator,
+    options = ["--pacman"],
+    metavar = "BOOL",
+    help = "Whether or not to install some default packages using pacman (Windows-only) (Skipped"
+           "if the mozilla option is enabled) (default = %DEFAULT_VALUE%)",
+    var_name = "pacman",
+  ),
 }
 
 # Read the JSON install config which will be used as the default values to hand to `argparse`.
@@ -206,12 +222,11 @@ if not args.uninstall:
     print("Error: Cannot find 'cygpath' in PATH.", file = sys.stderr)
     sys.exit(1)
   if config["build"]:
-    if paths["system"]["cargo"] is None:
-      print("Error: Cannot find 'cargo' in PATH.", file = sys.stderr)
-      sys.exit(1)
     if paths["system"]["git"] is None:
-      print("Error: Cannot find 'git' in PATH.", file = sys.stderr)
-      sys.exit(1)
+      raise EnvironmentError("Error: Cannot find 'git' in PATH.")
+  if config["python"]:
+    if paths["system"]["python3"] is None:
+      raise EnvironmentError("Error: Cannot find 'python3' in PATH.")
 
   with open(install_config_path, "w") as f:
     json.dump(config, f)
@@ -226,6 +241,11 @@ global_vars.init(config, paths)
 
 if config["build"] and not config["uninstall"]:
   output("=== Build Stage Start")
+
+  if paths["system"]["cargo"] is None:
+    output("== Installing cargo Start")
+    rust.install_cargo()
+    output("== Installing cargo Complete\n")
 
   output("== Fetching Code Start")
   external_repos.fetch()
@@ -259,6 +279,15 @@ if config["python"] and not config["uninstall"]:
 
   output("=== Python Stage Complete\n")
 
+if config["pacman"] and os.name == "nt" and not config["mozilla"]:
+  output("=== pacman Stage Start")
+
+  if config["uninstall"]:
+    pacman.uninstall()
+  else:
+    pacman.install()
+
+  output("=== pacman Stage Complete\n")
 
 if config["uninstall"]:
   output("=== Cleanup Start")
