@@ -36,7 +36,7 @@ def install_cargo():
       os.path.join(os.environ["USERPROFILE"], ".cargo", "bin", "cargo.exe")
   else:
     paths["system"]["cargo"] = \
-      os.path.join(os.environ["HOME"], ".cargo", "bin", "cargo.exe")
+      os.path.join(os.environ["HOME"], ".cargo", "bin", "cargo")
 
 def build():
   paths = global_vars.get_paths()
