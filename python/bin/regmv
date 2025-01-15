@@ -242,7 +242,7 @@ parser = argparse.ArgumentParser(
     recurse through sub directories, -r can be used.
 
     Example:
-      {sys.argv[0]} -t 'arith|count|@ + 1' '(?<count>\\d+) panels' '{{count}} fence posts'
+      {sys.argv[0]} -t 'arith|count|@ + 1' '(?P<count>\\d+) panels' '{{count}} fence posts'
   """),
   epilog = dedent("""\
     Transforms
