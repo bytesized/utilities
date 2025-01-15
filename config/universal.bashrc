@@ -6,7 +6,8 @@
 # with other things that might be similarly named, so we will prefix with `_B_` and hope that that
 # is enough.
 
-export _B_BASHRC_LOADED="true"
+# Do not export this or it ends up in `screen` sessions. It still stays around in the shell either way.
+_B_BASHRC_LOADED="true"
 
 _B_OS="unknown"
 if [[ "$OSTYPE" == "msys" ]]; then
