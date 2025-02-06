@@ -224,6 +224,10 @@ if not args.uninstall:
   if config["build"]:
     if paths["system"]["git"] is None:
       raise EnvironmentError("Error: Cannot find 'git' in PATH.")
+    if os.name == "nt" and paths["system"]["cargo"] is None:
+      # We can attempt to install this on non-Windows, but it we don't currently support doing
+      # that on Windows
+      raise EnvironmentError("Error: Cannot find 'cargo' in PATH.")
   if config["python"]:
     if paths["system"]["python3"] is None:
       raise EnvironmentError("Error: Cannot find 'python3' in PATH.")
