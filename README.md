@@ -41,3 +41,5 @@ The Python utilities lack standard Python file extensions. But because they each
 * Add config files for vim, mercurial, sublime text
 * Add my Greasemonkey scripts
 * Write an update checking script
+* Install cargo on Windows automatically?
+* It seems like some additional dependencies are needed on Linux: `curl`, `build-essential`, `python3-pip`
