@@ -531,7 +531,7 @@ function pre_prompt {
   fi
 
   _B_USER=$(whoami | sed 's|^.*\\||')
-  local hg_summary="$(hg summary 2>/dev/null)"
+  local hg_parents="$(hg parents 2>/dev/null)"
   local git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
   unset info_bar_array
   unset info_color_array
@@ -539,7 +539,7 @@ function pre_prompt {
   local info_bar_trim_start
   local info_color_array
   local info_bar_array
-  if [[ -z "$hg_summary" ]]
+  if [[ -z "$hg_parents" ]]
   then
     if [[ -z "$git_branch" ]]
     then
@@ -557,18 +557,9 @@ function pre_prompt {
       (( info_array_size = info_array_size + 1 ))
     fi
   else
-    local hg_branch="$(echo "$hg_summary" | grep '^branch: ' | sed 's|^branch: ||')"
-
     info_bar_trim_start="False"
-    info_color_array[$info_array_size]="${GREEN}"
-    info_bar_array[$info_array_size]="branch: "
-    (( info_array_size = info_array_size + 1 ))
-    info_color_array[$info_array_size]="${BOLD_CYAN}"
-    info_bar_array[$info_array_size]="${hg_branch} "
-    (( info_array_size = info_array_size + 1 ))
+    hg bookmark -i &>/dev/null
 
-    local active_bookmark="$(echo "$hg_summary" | grep '^bookmarks: ' | grep '\*' | sed 's|^[^*]*\*\([^[:blank:]]*\).*$|\1|')"
-    local hg_parents="$(hg parents)"
     local bookmarks="$(echo "$hg_parents" | grep '^bookmark:' | sed 's|^bookmark:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$|\1|')"
     local fxtree="$(echo "$hg_parents" | grep '^fxtree:' | sed 's|^fxtree:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$|\1|')"
     local changeset="$(echo "$hg_parents" | grep '^changeset:' | sed 's|^changeset:[[:blank:]]*\([0-9]*\):.*$|\1|')"
@@ -584,7 +575,6 @@ function pre_prompt {
         info_bar_array[$info_array_size]=" ${line}"
         (( info_array_size = info_array_size + 1 ))
       done <<< "$fxtree"
-
     elif [[ -n "$bookmarks" ]]
     then
       info_color_array[$info_array_size]="${GREEN}"
@@ -593,12 +583,6 @@ function pre_prompt {
       local bookmark
       while read -r bookmark
       do
-        if [[ "$active_bookmark" = "$bookmark" ]]
-        then
-          # I don't like active bookmarks. I want my bookmarks to stay where I
-          # freaking put them. If we have an active bookmark, deactivate it.
-          hg bookmark -i
-        fi
         info_color_array[$info_array_size]="${BOLD_CYAN}"
         info_bar_array[$info_array_size]=" ${bookmark}"
         (( info_array_size = info_array_size + 1 ))
