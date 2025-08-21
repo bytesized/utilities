@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 
+DEFAULT_NOTIFICATION_TEXT = "Notification"
+
 # Shamelessly stolen from:
 # https://searchfox.org/mozilla-central/rev/4496b3ed9bb535832e4826f09fbcb645b559a32d/python/mozbuild/mozbuild/base.py#572
 
@@ -63,13 +65,19 @@ if __name__ == '__main__':
                                       stopped paying attention to the window.
                                    """)
   parser.add_argument("title",
+                      nargs = "?",
                       help = """
                         The title of the notification.
                       """)
   parser.add_argument("message",
+                      nargs = "?",
                       help = """
                         The message text for the notification.
                       """)
   args = parser.parse_args()
+  if args.title is None:
+    args.title = DEFAULT_NOTIFICATION_TEXT
+  if args.message is None:
+    args.message = args.title
 
   notifyuser(args.title, args.message)
