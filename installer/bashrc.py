@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import tempfile
+import shutil
 
 from . import cygpath, global_vars
 
@@ -180,7 +181,7 @@ def update_loader_in_script(script_path, load_target, remove_loader):
   if old_loader_found:
     # Overwrite the file with the temp file.
     os.remove(script_path)
-    os.rename(temp_path, script_path)
+    shutil.move(temp_path, script_path)
   else:
     # There was no loader to update. Just add it to the end of the script.
     os.remove(temp_path)
