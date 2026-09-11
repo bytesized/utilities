@@ -42,6 +42,9 @@ elif [[ "$_B_OS" == "mac" ]]; then
   export PATH="/usr/local/bin:${PATH}"
   export PATH="${PATH}:/sbin"
   export PATH="${PATH}:/usr/local/sbin"
+  if [[ "$_B_MOZILLA" == "true" ]]; then
+    export PATH="/Users/bytesized/.local/bin:${PATH}"
+  fi
 elif [[ "$_B_OS" == "linux" ]]; then
   export PATH="${PATH}:/sbin"
   export PATH="${PATH}:${HOME}/.local/bin/"
