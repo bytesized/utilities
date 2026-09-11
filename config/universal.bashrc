@@ -38,6 +38,7 @@ if [[ "$_B_OS" == "windows" ]]; then
   fi
 elif [[ "$_B_OS" == "mac" ]]; then
   export PATH="/usr/local/Homebrew/bin:${PATH}"
+  export PATH="/opt/homebrew/bin/:${PATH}"
   export PATH="/usr/local/bin:${PATH}"
   export PATH="${PATH}:/sbin"
   export PATH="${PATH}:/usr/local/sbin"
